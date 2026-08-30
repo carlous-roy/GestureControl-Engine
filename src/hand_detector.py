@@ -5,8 +5,6 @@ Supports both the legacy solutions API and newer Tasks API.
 
 import cv2
 import math
-import numpy as np
-from typing import List, Optional
 import logging
 
 logger = logging.getLogger(__name__)
@@ -58,7 +56,6 @@ class HandDetector:
         )
 
     def _init_tasks_api(self, max_hands, det_conf, track_conf):
-        import mediapipe as mp
         from mediapipe.tasks import python as mp_python
         from mediapipe.tasks.python import vision
         import os, tempfile

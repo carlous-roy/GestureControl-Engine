@@ -68,18 +68,32 @@ The finger counting algorithm compares fingertip positions against reference joi
 ### For Index, Middle, Ring, Pinky (Vertical Check)
 
 ```python
-finger_is_up = (TIP.y < PIP.y)
+finger_is_up = (PIP.y - TIP.y) > 15   # pixels
 ```
 
-In image coordinates, y=0 is at the top. A raised finger has its tip *above* (lower y) its PIP joint.
+In image coordinates, y=0 is at the top, so a raised finger has its tip *above* (lower y) its PIP
+joint. A bare `TIP.y < PIP.y` test flickers on half-curled poses where the two joints sit within a
+pixel or two of each other, so the classifier requires a minimum gap of 15 pixels. This is a static
+geometric margin, not a motion filter — it is evaluated independently on every frame.
 
-### For Thumb (Horizontal Check)
+### For Thumb (Palm-Width Ratio)
 
 ```python
-thumb_is_up = (TIP.x > IP.x)
+palm_width     = distance(INDEX_MCP, PINKY_MCP)   # landmarks 5 and 17
+thumb_to_index = distance(THUMB_TIP, INDEX_MCP)   # landmarks 4 and 5
+
+thumb_is_up = thumb_to_index > palm_width * 0.6
 ```
 
-The thumb moves laterally rather than vertically. When extended, the thumb tip's x-coordinate exceeds the IP joint's x-coordinate (for a right hand facing the camera).
+The thumb folds laterally rather than vertically, so the tip-above-PIP test reports it raised no
+matter what it is doing. A plain `TIP.x > IP.x` comparison is no better: it inverts for the left hand
+and breaks as soon as the hand rotates.
+
+Measuring the thumb tip's distance from the index finger base and dividing through by palm width
+gives a scale-invariant ratio instead. Tucked across the palm it sits around 0.3-0.4; extended
+outward it sits around 0.6-0.8, so the 0.6 threshold separates the two cases with margin either side.
+Distances are Euclidean over pixel-space (x, y) coordinates; a palm width under 1 pixel is treated as
+unusable geometry and the thumb is reported down.
 
 ### Mapping to Relay States
 
@@ -128,16 +142,16 @@ cv2.imshow()                # Display annotated frame
 
 | Metric | Value |
 |--------|-------|
-| Frame Rate | 25–35 FPS (CPU-only, modern laptop) |
+| Frame Rate | 25–30 FPS (CPU-only, modern laptop) |
 | Detection Latency | ~30ms per frame |
 | End-to-End Latency | <50ms (gesture → relay activation) |
 | Detection Confidence Threshold | 0.7 (configurable) |
 | Tracking Confidence Threshold | 0.6 (configurable) |
-| Supported Hands | 1 (configurable up to 2) |
+| Supported Hands | 1 (`HandDetector(max_hands=...)` constructor parameter; no CLI flag) |
 
 ## Limitations & Known Issues
 
-1. **Thumb detection** assumes a right hand facing the camera. Left-hand support would require flipping the horizontal comparison or detecting handedness.
+1. **Geometric, not learned.** The classifier assumes a roughly upright hand facing the camera. The palm-width ratio used for the thumb is handedness-agnostic, but the tip-above-PIP test for the other four fingers degrades as the hand rotates, because the vertical axis stops meaning what the rule assumes.
 2. **Lighting sensitivity:** Performance degrades in very low light or strong backlighting.
 3. **Occlusion:** Partially visible hands may produce incorrect counts.
-4. **Single-hand only:** The current implementation uses only the first detected hand.
+4. **Single-hand only:** `max_hands` defaults to 1, so MediaPipe is configured to return at most one hand per frame.

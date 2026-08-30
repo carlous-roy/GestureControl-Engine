@@ -4,8 +4,6 @@ finger count, relay indicators, FPS, and connection status.
 """
 
 import cv2
-import numpy as np
-from typing import List
 
 GREEN = (0, 200, 0)
 RED = (0, 0, 255)

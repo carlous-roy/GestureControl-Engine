@@ -22,16 +22,14 @@ The Arduino runs **StandardFirmata**, a firmware that exposes all GPIO pins to t
 | Specification | Value |
 |--------------|-------|
 | Channels | 4 (independent) |
-| Trigger | Active LOW (5V logic) |
+| Trigger | Active HIGH (5V logic) |
 | Max Load | 10A @ 250VAC / 10A @ 30VDC |
 | Isolation | Optocoupler (no direct electrical connection to controller) |
 | Input Pins | IN1, IN2, IN3, IN4, VCC, GND |
 
 Each relay provides **COM** (Common), **NO** (Normally Open), and **NC** (Normally Closed) terminals. The optocoupler ensures the Arduino is electrically isolated from the mains-voltage relay coil circuit.
 
-### Relay Driver: ULN2003
-
-The ULN2003 is a 16-pin Darlington transistor array IC that provides the current amplification needed to drive relay coils from low-current microcontroller GPIO pins. Each of its 7 channels can sink up to 500mA.
+The module is driven active-HIGH: writing a digital HIGH to an input pin energises that channel's relay, writing LOW releases it. This matches `RelayController.set_relay()` in `src/controller.py`, which writes `1` for ON and `0` for OFF with no inversion. Some relay boards are wired active-LOW instead; if yours is, the relays will read inverted and the write values in `controller.py` need swapping.
 
 ## Circuit Diagram
 

@@ -7,7 +7,6 @@ Mapping: 0=all off, 1-4=individual relay, 5=all on
 """
 
 import logging
-from typing import List
 
 logger = logging.getLogger(__name__)
 

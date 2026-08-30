@@ -1,6 +1,6 @@
 # Technical Report: AI Gesture-Based Home Automation
 
-**Corrected and accurate version of the original B.E. project report**
+**System design, algorithm and hardware reference**
 
 ---
 
@@ -44,7 +44,7 @@ The system consists of two subsystems:
 ### 2.2 Processing Pipeline
 
 ```
-Frame Capture (OpenCV, 30 FPS)
+Frame Capture (OpenCV, 25-30 FPS)
         |
         v
 Hand Detection (MediaPipe Hands)
@@ -53,7 +53,7 @@ Hand Detection (MediaPipe Hands)
         |
         v
 Finger Counting (Custom Algorithm)
-  - Thumb: distance-based comparison (tip vs MCP relative to index base)
+  - Thumb: palm-width ratio (thumb tip to index MCP vs palm width)
   - Fingers: vertical y-axis comparison (tip above PIP joint)
   - 3-frame stabilization before relay change
         |
@@ -94,34 +94,28 @@ The 21 landmarks correspond to:
 - Wrist (1 point)
 - Each finger: MCP, PIP, DIP, and TIP joints (4 points x 5 fingers = 20 points)
 
-MediaPipe runs entirely on CPU and achieves 30 FPS on modern laptop hardware.
-
-**Note on "Deep Forest Algorithm":** The original project report (2022) referenced a "Deep Forest Algorithm" in section 4.4.3. This was inaccurate — the described content was about the DeepForest Python package for detecting tree crowns in aerial forestry imagery, which is unrelated to hand gesture recognition. The actual hand detection in this project uses exclusively MediaPipe Hands. No custom deep learning model was trained.
+MediaPipe runs entirely on CPU and sustains 25-30 FPS on modern laptop hardware.
 
 ### 3.2 Finger Counting Algorithm
 
-#### Thumb Detection (Improved)
+#### Thumb Detection
 
-The original implementation used a simple x-axis comparison (thumb tip x > thumb IP x). This approach fails when the hand is rotated, tilted, or when using the left hand.
+The thumb folds laterally rather than vertically, so the tip-above-PIP test used for the other four fingers reports it as raised regardless of what it is doing. A plain x-axis comparison (thumb tip x > thumb IP x) is no better: it inverts for the left hand and breaks as soon as the hand rotates.
 
-The improved approach uses distance-based comparison:
+The classifier instead uses a palm-width ratio, so the test is scale-invariant as the hand moves toward or away from the camera:
 
 ```
 thumb_tip = landmark[4]     // THUMB_TIP
-thumb_mcp = landmark[2]     // THUMB_MCP
-index_mcp = landmark[5]     // INDEX_MCP
-wrist     = landmark[0]     // WRIST
+index_mcp = landmark[5]     // INDEX_FINGER_MCP
+pinky_mcp = landmark[17]    // PINKY_MCP
 
-dist_tip_to_index = euclidean(thumb_tip, index_mcp)
-dist_mcp_to_index = euclidean(thumb_mcp, index_mcp)
+palm_width     = euclidean(index_mcp, pinky_mcp)
+thumb_to_index = euclidean(thumb_tip, index_mcp)
 
-thumb_up = (dist_tip_to_index > dist_mcp_to_index * 1.2) 
-           AND (distance(thumb_tip, wrist) > distance(thumb_ip, wrist))
+thumb_up = thumb_to_index > palm_width * 0.6
 ```
 
-The thumb is considered "up" when:
-1. The thumb tip is at least 1.2x farther from the index finger base than the thumb MCP is (thumb is extended outward)
-2. The thumb tip is farther from the wrist than the thumb IP joint (thumb is not folded inward)
+Distances are Euclidean over the pixel-space (x, y) landmark coordinates. With the thumb tucked across the palm the ratio sits around 0.3-0.4; with the thumb extended outward it sits around 0.6-0.8, so a threshold of 0.6 separates the two cases with margin on both sides. If the measured palm width is below 1 pixel the frame is treated as having no usable hand geometry and the thumb is reported down.
 
 #### Other Fingers Detection
 
@@ -172,7 +166,7 @@ Relay mapping:
 
 ### 3.4 Simulation Mode
 
-The system includes a simulation mode that runs without Arduino hardware. When no serial port is specified, relay commands are printed to the console instead of being sent to hardware. This allows development, testing, and demonstration without physical components.
+The system includes a simulation mode that runs without Arduino hardware. When no serial port is specified, the controller keeps its relay state in memory and skips the serial write; the state is rendered live in the on-screen overlay, and each confirmed gesture transition is logged. This allows development, testing, and demonstration without physical components.
 
 ---
 
@@ -197,7 +191,7 @@ The relay module includes:
 - LED indicators for each relay state
 - Rated for 10A at 250VAC or 30VDC per channel
 
-The optocoupler isolation protects the Arduino from voltage spikes when relay coils switch. Input pins are active-LOW on most modules (though logic is handled in software).
+The optocoupler isolation protects the Arduino from voltage spikes when relay coils switch. The module used here is active-HIGH: the controller writes a digital HIGH to an input pin to energise that relay and a LOW to release it, with no inversion applied in software.
 
 ### 4.3 Wiring
 
@@ -225,7 +219,7 @@ Each relay's COM (Common) terminal connects to mains live, and the NO (Normally 
 - System operates at 25-30 FPS on a modern laptop
 - Relay response is perceived as instantaneous by the user
 - Simulation mode allows demonstration without hardware
-- Thumb detection accuracy significantly improved with distance-based approach over the naive x-axis method
+- Palm-width-ratio thumb detection holds up across hand rotation and camera distance, where a plain x-axis comparison does not
 
 ---
 
@@ -233,7 +227,7 @@ Each relay's COM (Common) terminal connects to mains live, and the NO (Normally 
 
 The system successfully demonstrates gesture-based home automation using commodity hardware (webcam + Arduino) and open-source software (OpenCV, MediaPipe, PyFirmata). The total hardware cost is under $30, and the software runs on any Python-capable computer with a webcam.
 
-Key improvements in the reconstructed codebase over the original implementation include modular code architecture, distance-based thumb detection, 3-frame gesture stabilization, state-holding behavior when the hand leaves frame, simulation mode for hardware-free operation, and comprehensive documentation.
+The codebase is organised as a modular `src/` package covering hand detection, relay control and the on-screen overlay, with palm-width-ratio thumb detection, 3-frame gesture stabilization, state-holding behaviour when the hand leaves frame, a simulation mode for hardware-free operation, unit tests and full documentation.
 
 ### Future Work
 
