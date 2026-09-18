@@ -229,8 +229,9 @@ def bench(
     detector_factory: Callable[[RunOptions], Detector] = _default_detector,
     source_factory: Callable[[RunOptions], FrameSource] = _default_source,
     clock: Callable[[], float] = time.perf_counter,
-    out: TextIO = sys.stdout,
+    out: TextIO | None = None,
 ) -> BenchResult:
+    out = out or sys.stdout
     if opts.frames < 1:
         raise ValueError("frames must be at least 1")
     run_opts = RunOptions(

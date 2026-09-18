@@ -46,8 +46,9 @@ def run_scenario(
     min_switch_interval: float = MIN_SWITCH_INTERVAL_S,
     realtime: bool = False,
     verbose: bool = False,
-    out: TextIO = sys.stdout,
+    out: TextIO | None = None,
 ) -> ScenarioReport:
+    out = out or sys.stdout
     now = [0.0]
     controller = RelayController(min_switch_interval=min_switch_interval, clock=lambda: now[0])
     pipeline = GesturePipeline(scenario.width, scenario.height, config)
@@ -112,9 +113,10 @@ def simulate(
     min_switch_interval: float = MIN_SWITCH_INTERVAL_S,
     realtime: bool = False,
     verbose: bool = False,
-    out: TextIO = sys.stdout,
+    out: TextIO | None = None,
 ) -> int:
     """Run the named scenarios (all by default); returns 0 when every one passes."""
+    out = out or sys.stdout
     available = {s.name: s for s in sc.build_scenarios()}
     if names:
         unknown = [n for n in names if n not in available]
@@ -151,6 +153,7 @@ def simulate(
     return 1 if failed else 0
 
 
-def list_scenarios(out: TextIO = sys.stdout) -> None:
+def list_scenarios(out: TextIO | None = None) -> None:
+    out = out or sys.stdout
     for scenario in sc.build_scenarios():
         out.write(f"{scenario.name:32s} {len(scenario.frames):4d} frames  {scenario.description}\n")

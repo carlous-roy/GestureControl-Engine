@@ -15,3 +15,6 @@ screenshots/
 *.log
 /bench.csv
 /bench.json
+.coverage
+coverage.xml
+htmlcov/
