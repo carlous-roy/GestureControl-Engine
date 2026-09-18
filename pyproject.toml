@@ -67,7 +67,6 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["PLR0915", "PLR0912"]
-"gesturecontrol/cli.py" = ["PLR0915", "PLR0912"]
 
 [tool.mypy]
 python_version = "3.10"
@@ -76,5 +75,5 @@ warn_unreachable = true
 files = ["gesturecontrol", "tests", "simulation"]
 
 [[tool.mypy.overrides]]
-module = ["mediapipe", "mediapipe.*", "pyfirmata", "pyfirmata2", "pyfirmata2.*", "cv2", "cv2.*", "serial", "serial.*"]
+module = ["mediapipe", "mediapipe.*", "pyfirmata2", "pyfirmata2.*", "cv2", "cv2.*", "serial", "serial.*"]
 ignore_missing_imports = true

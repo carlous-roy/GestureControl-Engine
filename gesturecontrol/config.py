@@ -98,9 +98,11 @@ MIN_SWITCH_INTERVAL_S = 0.5
 HEARTBEAT_INTERVAL_S = 0.25
 HEARTBEAT_TIMEOUT_MS = 1000
 
-#: Firmata SysEx command ids (0x00-0x0F are reserved for user commands).
+#: Firmata SysEx command ids. 0x00-0x0F are reserved for user commands,
+#: 0x79 is the standard firmware name and version query.
 SYSEX_HEARTBEAT = 0x01
 SYSEX_WATCHDOG_CONFIG = 0x02
+SYSEX_REPORT_FIRMWARE = 0x79
 
 # Vision -------------------------------------------------------------------
 
