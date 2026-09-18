@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "filter": {
+    "min_cutoff_hz": 1.0,
+    "beta": 5.0,
+    "derivative_cutoff_hz": 10.0
+  },
+  "finger": {
+    "raise_threshold": 0.35,
+    "lower_threshold": 0.25
+  },
+  "thumb": {
+    "raise_threshold": 0.40,
+    "lower_threshold": 0.30
+  },
+  "min_palm_width_px": 8.0,
+  "confirm_frames": 3
+}
