@@ -84,7 +84,7 @@ const TECH_STACK = [
   { name: "Python 3", role: "Runtime", color: "#3776AB" },
   { name: "OpenCV", role: "Camera & Video", color: "#5C3EE8" },
   { name: "MediaPipe", role: "Hand Tracking", color: "#0F9D58" },
-  { name: "PyFirmata", role: "Arduino Protocol", color: "#00979D" },
+  { name: "pyFirmata2", role: "Arduino Protocol", color: "#00979D" },
   { name: "Arduino UNO", role: "Microcontroller", color: "#00979D" },
   { name: "4-Ch Relay", role: "Appliance Switching", color: "#DC2626" },
 ];
@@ -473,8 +473,8 @@ export default function App() {
 
             <div className="grid grid-cols-3 gap-3">
               {[
-                { title: "PyFirmata Protocol", desc: "Sends digital HIGH/LOW signals to Arduino pins over serial USB", color: "#00979D" },
-                { title: "Arduino UNO (ATmega328P)", desc: "Receives commands and drives relay coils via digital output pins 4-7", color: "#00979D" },
+                { title: "Firmata over serial", desc: "The host writes pin levels over USB with pyFirmata2 and sends a heartbeat for the optional watchdog sketch", color: "#00979D" },
+                { title: "Arduino UNO (ATmega328P)", desc: "Drives the module inputs from pins 7 to 4; with the watchdog sketch it releases every relay if the heartbeat stops", color: "#00979D" },
                 { title: "4-Channel Relay Module", desc: "Optocoupler-isolated relays switch mains voltage to control appliances", color: "#DC2626" },
               ].map((item) => (
                 <div key={item.title} className="bg-white/[0.02] border border-white/[0.06] rounded-2xl p-4">

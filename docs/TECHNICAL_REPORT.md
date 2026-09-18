@@ -1,254 +1,246 @@
-# Technical Report: AI Gesture-Based Home Automation
+# Technical Report: Gesture-Based Relay Control
 
-**System design, algorithm and hardware reference**
+**System design, implementation, verification and limitations**
 
 ---
 
 ## 1. Introduction
 
-This project implements a real-time hand gesture recognition system for controlling home appliances. A webcam captures the user's hand gestures, computer vision software detects and counts the number of raised fingers (0-5), and the count is mapped to relay states that switch appliances on and off through an Arduino UNO microcontroller.
+The system counts the extended fingers of one hand in a webcam picture and
+switches four relays accordingly: 0 fingers turns every relay off, 1 to 4
+turns on the matching relay, 5 turns all four on. A laptop runs the vision
+and classification; an Arduino UNO running Firmata drives the relay module
+over USB.
 
-The system targets accessibility use cases: elderly individuals, people with mobility impairments, and situations where touchless interaction is preferred.
+The project started as a final-year B.E. project in 2022. The code in this
+repository is a rebuild: a Python package with a command-line interface, a
+rule-based classifier in the hand's own frame of reference, a fail-safe
+relay controller, a hardware-free simulator, a benchmark tool, tests, CI,
+and a browser demo that runs the same classifier.
 
-### 1.1 Objective
+### 1.1 Scope
 
-- Detect hand gestures in real-time using a standard webcam
-- Count raised fingers (0-5) using landmark-based geometric analysis
-- Control 4 home appliances via an Arduino UNO and relay module
-- Achieve low-latency response (under 50ms per frame)
-
-### 1.2 Scope
-
-The system recognizes six discrete gestures (0-5 fingers) and maps each to a fixed appliance state. It does not perform sign language recognition, arbitrary gesture classification, or multi-hand tracking. The gesture vocabulary is intentionally limited to ensure high reliability.
-
----
-
-## 2. System Architecture
-
-### 2.1 Overview
-
-The system consists of two subsystems:
-
-**Software subsystem** (runs on a laptop/PC):
-- OpenCV for webcam capture and video display
-- Google MediaPipe Hands for hand landmark detection
-- Custom finger counting algorithm based on landmark geometry
-- PyFirmata protocol for serial communication with Arduino
-
-**Hardware subsystem:**
-- Arduino UNO (ATmega328P) microcontroller
-- 4-channel relay module with optocoupler isolation
-- Household appliances (bulbs for demonstration)
-- 5V regulated power supply
-
-### 2.2 Processing Pipeline
-
-```
-Frame Capture (OpenCV, 25-30 FPS)
-        |
-        v
-Hand Detection (MediaPipe Hands)
-  - Palm detection model locates hand region
-  - Hand landmark model extracts 21 3D keypoints
-        |
-        v
-Finger Counting (Custom Algorithm)
-  - Thumb: palm-width ratio (thumb tip to index MCP vs palm width)
-  - Fingers: vertical y-axis comparison (tip above PIP joint)
-  - 3-frame stabilization before relay change
-        |
-        v
-Relay Command (PyFirmata over USB Serial)
-  - Digital HIGH/LOW to Arduino pins 4-7
-        |
-        v
-Appliance Switching (Relay Module)
-  - Optocoupler-isolated relay coils
-  - Normally-Open contacts switch mains voltage
-```
-
-### 2.3 Latency Breakdown
-
-| Stage | Latency |
-|-------|---------|
-| Frame capture | ~3ms |
-| MediaPipe hand detection | 15-30ms |
-| Finger counting | <1ms |
-| Serial communication | ~2ms |
-| Relay switching | ~10ms |
-| **Total per frame** | **~30-45ms** |
+Six gestures (0 to 5 extended fingers) from one hand facing the camera. No
+sign language, no arbitrary gestures, no user identification. The gesture
+vocabulary is small on purpose: the rules are readable and testable, and
+every relay change can be traced to a measured quantity.
 
 ---
 
-## 3. Software Implementation
-
-### 3.1 Hand Detection: MediaPipe Hands
-
-Google's MediaPipe Hands provides real-time hand tracking that extracts 21 three-dimensional landmarks per detected hand. The model uses a two-stage pipeline:
-
-1. **Palm detection model** — A lightweight single-shot detector that locates the hand's bounding box in the full frame. This runs once and then only re-runs when tracking is lost.
-
-2. **Hand landmark model** — Operates on the cropped hand region and predicts 21 keypoint positions in 3D (x, y, z). The model was trained on approximately 30,000 real-world images plus synthetic hand renderings.
-
-The 21 landmarks correspond to:
-- Wrist (1 point)
-- Each finger: MCP, PIP, DIP, and TIP joints (4 points x 5 fingers = 20 points)
-
-MediaPipe runs entirely on CPU and sustains 25-30 FPS on modern laptop hardware.
-
-### 3.2 Finger Counting Algorithm
-
-#### Thumb Detection
-
-The thumb folds laterally rather than vertically, so the tip-above-PIP test used for the other four fingers reports it as raised regardless of what it is doing. A plain x-axis comparison (thumb tip x > thumb IP x) is no better: it inverts for the left hand and breaks as soon as the hand rotates.
-
-The classifier instead uses a palm-width ratio, so the test is scale-invariant as the hand moves toward or away from the camera:
+## 2. System overview
 
 ```
-thumb_tip = landmark[4]     // THUMB_TIP
-index_mcp = landmark[5]     // INDEX_FINGER_MCP
-pinky_mcp = landmark[17]    // PINKY_MCP
-
-palm_width     = euclidean(index_mcp, pinky_mcp)
-thumb_to_index = euclidean(thumb_tip, index_mcp)
-
-thumb_up = thumb_to_index > palm_width * 0.6
+webcam ──► OpenCV capture ──► MediaPipe Hands ──► One Euro filter ──► finger rules
+                                                                          │
+   relay module ◄── Arduino (Firmata) ◄── serial ◄── relay controller ◄── 3-frame confirmation
 ```
 
-Distances are Euclidean over the pixel-space (x, y) landmark coordinates. With the thumb tucked across the palm the ratio sits around 0.3-0.4; with the thumb extended outward it sits around 0.6-0.8, so a threshold of 0.6 separates the two cases with margin on both sides. If the measured palm width is below 1 pixel the frame is treated as having no usable hand geometry and the thumb is reported down.
+Software (host):
 
-#### Other Fingers Detection
+- OpenCV for capture, mirroring and the optional window;
+- MediaPipe Hands for the 21 landmarks (legacy Solutions API or Tasks API,
+  whichever the installed mediapipe provides);
+- `gesturecontrol`: filter, rules, confirmation, relay controller, loop,
+  simulator, benchmark;
+- `pyfirmata2` for the Firmata protocol over serial.
 
-For index, middle, ring, and pinky fingers, a vertical comparison is used:
+Hardware:
 
-```
-For each finger i in [index, middle, ring, pinky]:
-    tip_y = landmark[TIP_ID[i]].y       // Fingertip y-coordinate
-    pip_y = landmark[TIP_ID[i] - 2].y   // PIP joint y-coordinate
-    
-    finger_up = (pip_y - tip_y) > 15 pixels
-```
-
-A finger is "up" when its tip is above its PIP joint by at least 15 pixels. This minimum gap threshold prevents borderline poses from causing jitter.
-
-#### Stabilization
-
-To prevent rapid relay switching from momentary detection noise, a 3-frame stabilization requirement is enforced:
-
-```
-if current_count == stable_count:
-    stable_frames += 1
-else:
-    stable_count = current_count
-    stable_frames = 1
-
-if stable_frames >= 3 AND stable_count != confirmed_count:
-    confirmed_count = stable_count
-    update_relays(confirmed_count)
-```
-
-Additionally, when the hand leaves the camera frame, relays hold their last confirmed state rather than defaulting to OFF. The user must show a fist (0 fingers) to explicitly turn everything off.
-
-### 3.3 Relay Control: PyFirmata
-
-PyFirmata is a Python library that implements the Firmata protocol for communicating with Arduino boards over serial USB. The Arduino runs the StandardFirmata sketch, which turns it into a general-purpose I/O device controllable from the host computer.
-
-Pin assignments:
-- Digital Pin 7 → Relay 1 (Appliance 1)
-- Digital Pin 6 → Relay 2 (Appliance 2)
-- Digital Pin 5 → Relay 3 (Appliance 3)
-- Digital Pin 4 → Relay 4 (Appliance 4)
-
-Relay mapping:
-- 0 fingers → all pins LOW (all off)
-- N fingers (1-4) → pin N HIGH, others LOW
-- 5 fingers → all pins HIGH (all on)
-
-### 3.4 Simulation Mode
-
-The system includes a simulation mode that runs without Arduino hardware. When no serial port is specified, the controller keeps its relay state in memory and skips the serial write; the state is rendered live in the on-screen overlay, and each confirmed gesture transition is logged. This allows development, testing, and demonstration without physical components.
+- Arduino UNO with `StandardFirmata` or the `RelayWatchdogFirmata` sketch
+  from `firmware/`;
+- a 5 V four-channel opto-isolated relay module, active-low by default;
+- loads on the normally-open contacts.
 
 ---
 
-## 4. Hardware Implementation
+## 3. Software design
 
-### 4.1 Arduino UNO
+### 3.1 Modules
 
-The Arduino UNO is based on the ATmega328P microcontroller. Key specifications:
-- Operating voltage: 5V
-- Digital I/O pins: 14 (of which 4 are used for relay control)
-- Clock speed: 16 MHz
-- Flash memory: 32 KB
-- USB interface for serial communication with host computer
+| Module | Responsibility |
+|--------|----------------|
+| `detector.py` | MediaPipe Hands on either API; returns normalised landmarks of the first hand |
+| `model.py` | pinned, checksummed hand landmarker bundle for the Tasks API, cached per user |
+| `filters.py` | One Euro filter per landmark coordinate |
+| `rules.py` | hand frame, finger and thumb extension, hysteresis latches, relay mapping |
+| `stabilizer.py` | N-frame confirmation with reset on hand loss |
+| `pipeline.py` | filter + rules + confirmation; no OpenCV, MediaPipe or hardware dependency |
+| `controller.py` | relay controller: polarity, switching interval, guarded writes, reconnect, cleanup, heartbeat |
+| `app.py` | the loop, signal handling, exit codes |
+| `camera.py` | camera or video-file frame source |
+| `scenarios.py` | recorded and synthetic hands, transforms, scripted sequences |
+| `simulate.py` | end-to-end replay without hardware |
+| `bench.py` | per-stage latency and frame-rate measurement |
+| `config.py`, `rules.json` | every constant |
 
-The Arduino runs the StandardFirmata sketch, which allows the host computer to read/write digital pins over serial USB without custom Arduino code.
+The pipeline is deliberately free of I/O so that it can be driven by
+recorded landmarks in tests, by the simulator, and by the JavaScript port
+in the browser demo.
 
-### 4.2 4-Channel Relay Module
+### 3.2 Classifier
 
-The relay module includes:
-- 4 independent SPDT (Single Pole Double Throw) relays
-- Optocoupler isolation between control logic and relay coils
-- LED indicators for each relay state
-- Rated for 10A at 250VAC or 30VDC per channel
+The classifier is described in full in `ALGORITHM.md`. In short:
 
-The optocoupler isolation protects the Arduino from voltage spikes when relay coils switch. The module used here is active-HIGH: the controller writes a digital HIGH to an input pin to energise that relay and a LOW to release it, with no inversion applied in software.
+1. landmarks are smoothed by a One Euro filter (Casiez, Roussel and Vogel,
+   2012) in normalised coordinates;
+2. a frame is attached to the hand: up axis from the wrist to the middle
+   MCP, side axis towards the thumb, palm width as the unit;
+3. a finger is extended when its tip lies beyond its PIP joint along the up
+   axis by more than 0.35 palm widths (lowering below 0.25); the thumb is
+   extended when its tip lies beyond the index MCP along the side axis by
+   more than 0.40 palm widths (lowering below 0.30);
+4. a count must hold for three consecutive frames before it is confirmed;
+   losing the hand resets the run but keeps the confirmed count.
 
-### 4.3 Wiring
+Because the measures are ratios inside a frame that rotates with the hand,
+the count does not depend on camera distance, resolution, mirroring, hand
+side or in-plane rotation. That is verified on 198 fixture cases derived
+from four recorded hands and six synthetic poses.
 
-```
-Arduino UNO          4-Channel Relay Module
-─────────────        ─────────────────────
-Pin 7  ──────────>   IN1  (Relay 1)
-Pin 6  ──────────>   IN2  (Relay 2)
-Pin 5  ──────────>   IN3  (Relay 3)
-Pin 4  ──────────>   IN4  (Relay 4)
-5V     ──────────>   VCC
-GND    ──────────>   GND
-```
+### 3.3 Relay controller and safety
 
-Each relay's COM (Common) terminal connects to mains live, and the NO (Normally Open) terminal connects to the appliance, which returns to mains neutral.
+The relay side is where a software mistake has a physical consequence, so
+the controller is built around a few rules:
 
-**Safety warning:** The relay module switches mains voltage (120V/240V AC). For safe demonstration, use low-voltage LEDs (5V) connected directly to the relay outputs.
+- polarity is explicit (active-low by default, `--active-high` otherwise)
+  and the watchdog firmware is told the same choice;
+- a relay is not switched twice within the minimum switching interval
+  (0.5 s); a change requested inside the window is applied when it ends,
+  and a change reversed before then is dropped;
+- every serial write is guarded; one reconnect is attempted, with the relay
+  levels restored, and a second failure stops the program with a clear
+  message that the relay states are unknown;
+- cleanup drives every relay to its off level and closes the board on every
+  exit path: normal quit, `SIGINT`, `SIGTERM`, `SIGHUP`, camera failure,
+  board failure, unhandled errors. It never raises, and a failure to release
+  the relays is reported through exit code 3;
+- with the watchdog sketch, the host sends a heartbeat every 250 ms and the
+  board releases all relays if none arrives for one second. This covers
+  the cases software on the host cannot: a crash, `kill -9`, a frozen
+  process, a pulled cable.
+
+Residual risk remains and is stated in the README: with `StandardFirmata`
+an uncontrolled host death leaves the relays as they were; there is no
+read-back of the contacts; a hung Arduino keeps driving its pins; any hand
+in view for three frames can switch a load.
+
+### 3.4 Simulation
+
+`gesturecontrol simulate` replays fifteen scripted sequences (recorded
+hands, synthetic poses, rotations, approach, jitter, hand loss, flicker,
+transitions) through the real pipeline and relay controller on a simulated
+clock, prints a per-frame trace, and exits non-zero if any sequence does
+not produce its declared confirmations, final count and final relay state.
+It needs no camera, display or board, and CI runs it on every push.
 
 ---
 
-## 5. Results
+## 4. Verification
 
-- Hand detection works reliably under standard indoor lighting
-- Finger counting achieves consistent accuracy for deliberate gestures
-- System operates at 25-30 FPS on a modern laptop
-- Relay response is perceived as instantaneous by the user
-- Simulation mode allows demonstration without hardware
-- Palm-width-ratio thumb detection holds up across hand rotation and camera distance, where a plain x-axis comparison does not
+### 4.1 Tests
+
+| Area | What is checked |
+|------|-----------------|
+| filter | pass-through of the first sample, jitter reduction at rest, bounded lag in fast motion, reset, duplicate timestamps |
+| rules | 198 fixture cases (`tests/fixtures/classifier_cases.json`), each from a fresh classifier and from one pre-latched to all-up; a 0.1 palm-width margin from every threshold; rotation and scale invariance of the raw measures; the side axis for both hands; degenerate geometry |
+| confirmation | commit on the third frame, reset on loss and on count change, hold on loss |
+| pipeline | fifteen scripted sequences with expected confirmations and relay states; `fixtures/golden_vectors.json` replayed frame by frame |
+| controller | polarity, switching interval, chatter collapse, connect failure, missing library, reconnect with state restore, reconnect failure, cleanup failure reporting, watchdog configuration and acknowledgement, heartbeat gap handling, heartbeat thread |
+| loop | headless run, hold on loss, camera read failure, camera open failure, board connection failure, lost board, quit key, `--no-ui` opening no window, frame budget, `SIGINT`/`SIGTERM`/`SIGHUP` delivered to the process |
+| model | size and checksum verification, download to a temporary file, corrupt download, missing model without network |
+| detector | real MediaPipe inference on synthetic frames on whichever API is installed, tracking and detect-every-frame modes |
+| bench | fake stages on a ticking clock; a generated video file with real inference |
+| demo | the JavaScript port replays the same golden vectors (Vitest) |
+
+CI (GitHub Actions) runs ruff, ruff format, mypy in strict mode, the test
+suite on Python 3.11 and 3.12 with the legacy MediaPipe API and on the
+Tasks API with current mediapipe, the simulator, the Vitest test and the
+Vite build of the demo, and an `arduino-cli` compile of the watchdog
+sketch for the UNO.
+
+### 4.2 Recorded hands
+
+Four hands were recovered as MediaPipe landmarks from frames in the 2022
+project report (two webcam screenshots of an open palm, a photograph of an
+open palm seen from behind, a photograph of a fist). Only the coordinates
+are in the repository (`gesturecontrol/data/hands.json`). They are the
+real-data anchor for the fixture set; every transform in the fixtures is
+applied to them as well as to the synthetic poses. Four hands are not a
+dataset, and no accuracy figure is claimed from them.
+
+### 4.3 Measurements
+
+Frame rate and per-stage latency are measured with `gesturecontrol bench`,
+which reports medians per stage and end-to-end frames per second together
+with the machine, camera, resolution and library versions. The README holds
+the table; it is filled in only from runs on a named machine with a camera.
+
+One measurement that does not need a camera: the cost of MediaPipe's palm
+detector. On a recorded 640x480 frame replayed as a video file in a
+2-vCPU cloud container (no camera, so no capture latency), the inference
+stage in tracking mode against detect-every-frame mode:
+
+| mediapipe | API | tracking, median ms | every frame, median ms |
+|-----------|-----|---------------------|------------------------|
+| 0.10.21 | Solutions | 9.2 | 18.9 |
+| 1.0.1 | Tasks | 9.8 | 20.9 |
+
+The roughly twofold difference is the palm detector, which in tracking mode
+runs only when no hand is being tracked. These are inference-stage timings
+from one machine that no user would run this on; they say nothing about
+the frame rate of the loop on a laptop with a camera.
 
 ---
 
-## 6. Conclusion
+## 5. Limitations
 
-The system successfully demonstrates gesture-based home automation using commodity hardware (webcam + Arduino) and open-source software (OpenCV, MediaPipe, PyFirmata). The total hardware cost is under $30, and the software runs on any Python-capable computer with a webcam.
+- Geometry, not learning: the rules assume a hand roughly facing the
+  camera. Tilting the hand towards the camera shortens finger extension
+  and can drop fingers; half-curled fingers are ambiguous by design.
+- MediaPipe's errors pass through. On one recorded frame the Tasks model
+  in detect-every-frame mode placed two fingertips wrongly and the count
+  read 3 instead of 5; the same frame in tracking mode read 5.
+- The thresholds were chosen from four recorded hands and a synthetic
+  model; a proper recording set with several people would allow measured
+  error rates.
+- One hand only, and MediaPipe chooses which. Two people in view are not
+  handled.
+- No arming gesture: a hand held for three frames switches a load.
+- Frame rate and latency are unmeasured until the bench is run on real
+  hardware.
+- The watchdog firmware compiles and is tested on the host side against a
+  fake device; it has not yet been run on a board within this repository's
+  history.
 
-The codebase is organised as a modular `src/` package covering hand detection, relay control and the on-screen overlay, with palm-width-ratio thumb detection, 3-frame gesture stabilization, state-holding behaviour when the hand leaves frame, a simulation mode for hardware-free operation, unit tests and full documentation.
+---
 
-### Future Work
+## 6. Future work
 
-- Expand gesture vocabulary beyond finger counting (e.g., swipe gestures for dimming)
-- Replace Arduino with Raspberry Pi for standalone operation (camera + controller in one device)
-- Add voice feedback for accessibility
-- Implement multi-hand support for different user gestures
-- Integrate with smart home protocols (MQTT, Zigbee)
+- Record a landmark dataset from several people and hands, and report
+  per-finger error rates and a confusion matrix.
+- An arming gesture or a minimum dwell for turning loads on.
+- Read-back of relay state (a sense input per channel).
+- Pitch tolerance: use the palm length as a second scale reference.
+- Multi-hand policy (ignore the second hand, or require both).
 
 ---
 
 ## References
 
-1. MediaPipe Hands — Google AI Edge. https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker
-2. PyFirmata — Python interface for Firmata protocol. https://github.com/tino/pyFirmata
-3. OpenCV — Open Source Computer Vision Library. https://opencv.org/
-4. Arduino StandardFirmata. https://docs.arduino.cc/libraries/firmata/
+1. Zhang, F. et al. (2020). MediaPipe Hands: On-device Real-time Hand
+   Tracking. arXiv:2006.10214. MediaPipe Hand Landmarker documentation:
+   https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker
+2. Casiez, G., Roussel, N. and Vogel, D. (2012). 1 Euro Filter: A Simple
+   Speed-based Low-pass Filter for Noisy Input in Interactive Systems.
+   CHI 2012. https://doi.org/10.1145/2207676.2208639
+3. pyFirmata2: https://github.com/berndporr/pyFirmata2
+4. Firmata protocol: https://github.com/firmata/protocol
+5. OpenCV: https://opencv.org/
 
 ---
 
-**Project:** B.E. Electronics and Communication Engineering, Sathyabama Institute of Science and Technology, Chennai (2022)
+**Project:** B.E. Electronics and Communication Engineering, Sathyabama
+Institute of Science and Technology, Chennai (2022)
 
 **Authors:** Roy Carlous C, Vasanth Mathew B
 
