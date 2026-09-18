@@ -1,6 +1,6 @@
 """
-Draws real-time status overlay on the camera feed:
-finger count, relay indicators, FPS, and connection status.
+Status overlay drawn on the camera feed: hand presence, live and confirmed
+counts, relay indicators, FPS and connection status.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ YELLOW = (0, 255, 255)
 FONT = cv2.FONT_HERSHEY_SIMPLEX
 
 GESTURE_LABELS = {
-    -1: "No Hand",
+    -1: "No gesture yet",
     0: "ALL OFF",
     1: "Appliance 1 ON",
     2: "Appliance 2 ON",
@@ -32,11 +32,20 @@ GESTURE_LABELS = {
 
 def draw_overlay(
     frame: Any,
-    finger_count: int,
+    *,
+    hand_present: bool,
+    live_count: int,
+    confirmed_count: int,
     relay_states: Sequence[bool],
     fps: float,
     hw_connected: bool,
 ) -> Any:
+    """Draw the status overlay in place and return the frame.
+
+    ``live_count`` is the count for this frame (-1 without a usable hand);
+    ``confirmed_count`` is what drives the relays and is shown even when the
+    hand has left the frame, because the relays keep that state.
+    """
     h, w, _ = frame.shape
 
     cv2.putText(frame, "Gesture Automation System", (10, 30), FONT, 0.65, WHITE, 2)
@@ -44,9 +53,8 @@ def draw_overlay(
 
     # Status indicators (bottom-left)
     y = h - 55
-    hand_ok = finger_count >= 0
-    cv2.circle(frame, (20, y), 5, GREEN if hand_ok else RED, cv2.FILLED)
-    hand_text = f"Hand: {'Detected' if hand_ok else 'None'}"
+    cv2.circle(frame, (20, y), 5, GREEN if hand_present else RED, cv2.FILLED)
+    hand_text = f"Hand: {'Detected' if hand_present else 'None'}"
     cv2.putText(frame, hand_text, (32, y + 4), FONT, 0.4, WHITE, 1)
 
     hw_color = GREEN if hw_connected else ORANGE
@@ -66,9 +74,9 @@ def draw_overlay(
         state_color = GREEN if is_on else GRAY
         cv2.putText(frame, "ON" if is_on else "OFF", (rx - 12, cy + 26), FONT, 0.28, state_color, 1)
 
-    # Finger count box (bottom-center)
-    label = GESTURE_LABELS.get(finger_count, "Unknown")
-    count_str = str(finger_count) if finger_count >= 0 else "-"
+    # Count box (bottom-centre): live count large, confirmed gesture as the label
+    label = GESTURE_LABELS.get(confirmed_count, "Unknown")
+    count_str = str(live_count) if live_count >= 0 else "-"
 
     box_w, box_h = 250, 65
     box_x = (w - box_w) // 2
@@ -77,7 +85,7 @@ def draw_overlay(
     overlay = frame.copy()
     cv2.rectangle(overlay, (box_x, box_y), (box_x + box_w, box_y + box_h), DARK_BG, cv2.FILLED)
     cv2.addWeighted(overlay, 0.75, frame, 0.25, 0, frame)
-    box_color = GREEN if finger_count >= 0 else RED
+    box_color = GREEN if hand_present else RED
     cv2.rectangle(frame, (box_x, box_y), (box_x + box_w, box_y + box_h), box_color, 2)
     cv2.putText(frame, count_str, (box_x + 15, box_y + 45), FONT, 1.5, GREEN, 3)
     cv2.putText(frame, label, (box_x + 60, box_y + 42), FONT, 0.6, WHITE, 2)

@@ -1,7 +1,7 @@
 """
 Command-line entry point for the gesture automation system.
-Captures webcam feed, detects fingers via MediaPipe, and controls
-relays through Arduino/Firmata.
+Captures webcam feed, detects hand landmarks via MediaPipe, classifies the
+finger count and controls relays through Arduino/Firmata.
 
 Usage:
   gesturecontrol                     # simulation mode
@@ -19,9 +19,17 @@ import time
 
 import cv2
 
+from gesturecontrol.config import (
+    DEFAULT_CAMERA_INDEX,
+    DEFAULT_DETECTION_CONFIDENCE,
+    DEFAULT_FRAME_HEIGHT,
+    DEFAULT_FRAME_WIDTH,
+    DEFAULT_TRACKING_CONFIDENCE,
+)
 from gesturecontrol.controller import RelayController
-from gesturecontrol.hand_detector import HandDetector
-from gesturecontrol.ui_overlay import draw_overlay
+from gesturecontrol.detector import HandDetector
+from gesturecontrol.overlay import draw_overlay
+from gesturecontrol.pipeline import GesturePipeline
 
 logger = logging.getLogger(__name__)
 
@@ -29,12 +37,12 @@ logger = logging.getLogger(__name__)
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Gesture-Based Home Automation")
     parser.add_argument("--port", type=str, default=None, help="Arduino serial port")
-    parser.add_argument("--camera", type=int, default=0, help="Camera index")
-    parser.add_argument("--width", type=int, default=640)
-    parser.add_argument("--height", type=int, default=480)
+    parser.add_argument("--camera", type=int, default=DEFAULT_CAMERA_INDEX, help="Camera index")
+    parser.add_argument("--width", type=int, default=DEFAULT_FRAME_WIDTH)
+    parser.add_argument("--height", type=int, default=DEFAULT_FRAME_HEIGHT)
     parser.add_argument("--no-ui", action="store_true", help="Disable overlay")
-    parser.add_argument("--detection-confidence", type=float, default=0.7)
-    parser.add_argument("--tracking-confidence", type=float, default=0.6)
+    parser.add_argument("--detection-confidence", type=float, default=DEFAULT_DETECTION_CONFIDENCE)
+    parser.add_argument("--tracking-confidence", type=float, default=DEFAULT_TRACKING_CONFIDENCE)
     return parser.parse_args(argv)
 
 
@@ -67,16 +75,13 @@ def main(argv: list[str] | None = None) -> None:
         min_detection_confidence=args.detection_confidence,
         min_tracking_confidence=args.tracking_confidence,
     )
+    pipeline: GesturePipeline | None = None
 
     logger.info("Ready. Show 0-5 fingers. Press Q to exit.")
 
-    prev_time = time.time()
+    prev_time = time.monotonic()
     frame_count = 0
     fps = 0.0
-    confirmed_count = -1
-    stable_count = -1
-    stable_frames = 0
-    stable_threshold = 3
 
     try:
         while True:
@@ -85,40 +90,37 @@ def main(argv: list[str] | None = None) -> None:
                 break
 
             frame = cv2.flip(frame, 1)
+            h, w, _ = frame.shape
+            if pipeline is None:
+                pipeline = GesturePipeline(w, h)
 
-            hand_detected = detector.process(frame)
-            finger_count = detector.count_fingers()
-            detector.draw(frame)
-
-            # Stabilization: only switch relays after seeing the same
-            # count for stable_threshold consecutive frames
-            if finger_count >= 0:
-                if finger_count == stable_count:
-                    stable_frames += 1
-                else:
-                    stable_count = finger_count
-                    stable_frames = 1
-
-                if stable_frames >= stable_threshold and stable_count != confirmed_count:
-                    confirmed_count = stable_count
-                    controller.set_from_finger_count(confirmed_count)
-                    logger.info(
-                        "Gesture: %d finger(s) -> Relays: %s", confirmed_count, controller.states
-                    )
-
-            # When hand leaves: relays hold. Show fist to turn off.
+            landmarks = detector.process(frame)
+            result = pipeline.process(landmarks, time.monotonic())
+            if result.changed:
+                controller.set_from_finger_count(result.confirmed_count)
+                logger.info(
+                    "Gesture: %d finger(s) -> Relays: %s", result.confirmed_count, controller.states
+                )
+            # When the hand leaves the frame the relays hold; a fist turns them off.
 
             frame_count += 1
-            now = time.time()
+            now = time.monotonic()
             if now - prev_time >= 1.0:
                 fps = frame_count / (now - prev_time)
                 frame_count = 0
                 prev_time = now
 
-            display_count = confirmed_count if not hand_detected else finger_count
             if not args.no_ui:
-                draw_overlay(frame, display_count, controller.states, fps, controller.is_connected)
-                h, _w, _ = frame.shape
+                detector.draw(frame, result.points_px)
+                draw_overlay(
+                    frame,
+                    hand_present=result.hand_present,
+                    live_count=result.raw_count,
+                    confirmed_count=result.confirmed_count,
+                    relay_states=controller.states,
+                    fps=fps,
+                    hw_connected=controller.is_connected,
+                )
                 cv2.putText(
                     frame,
                     "Press Q to exit",
@@ -143,7 +145,7 @@ def main(argv: list[str] | None = None) -> None:
     except KeyboardInterrupt:
         logger.info("Interrupted.")
     finally:
-        detector.release()
+        detector.close()
         cap.release()
         cv2.destroyAllWindows()
         controller.cleanup()

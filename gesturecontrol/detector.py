@@ -1,17 +1,32 @@
 """
-Hand detection and finger counting using MediaPipe Hands.
-Supports both the legacy solutions API and newer Tasks API.
+Hand landmark detection with MediaPipe Hands.
+
+Two MediaPipe APIs are supported and chosen at import time:
+
+* the legacy Solutions API (``mediapipe.solutions.hands``, mediapipe
+  < 0.10.30), whose model files ship inside the wheel;
+* the Tasks API (``mediapipe.tasks.python.vision.HandLandmarker``), which
+  needs a model bundle downloaded on first use.
+
+Either way ``process`` returns the 21 normalised (x, y) landmarks of the
+first detected hand, or None. Classification happens elsewhere.
 """
 
 from __future__ import annotations
 
 import logging
-import math
 import os
 import tempfile
+import urllib.request
 from typing import Any
 
 import cv2
+
+from gesturecontrol.config import (
+    DEFAULT_DETECTION_CONFIDENCE,
+    DEFAULT_TRACKING_CONFIDENCE,
+)
+from gesturecontrol.filters import Point
 
 logger = logging.getLogger(__name__)
 
@@ -32,23 +47,15 @@ HAND_CONNECTIONS = [
     (5, 9), (9, 13), (13, 17),
 ]  # fmt: skip
 
-Landmark = list[int]
-
-
-def _distance(p1: Landmark, p2: Landmark) -> float:
-    return math.sqrt((p1[1] - p2[1]) ** 2 + (p1[2] - p2[2]) ** 2)
-
 
 class HandDetector:
-    TIP_IDS = (4, 8, 12, 16, 20)
-
     def __init__(
         self,
         max_hands: int = 1,
-        min_detection_confidence: float = 0.7,
-        min_tracking_confidence: float = 0.6,
+        min_detection_confidence: float = DEFAULT_DETECTION_CONFIDENCE,
+        min_tracking_confidence: float = DEFAULT_TRACKING_CONFIDENCE,
     ) -> None:
-        self._landmarks: list[Landmark] = []
+        self._landmarks: list[Point] | None = None
         self._results: Any = None
         self._use_tasks = _USE_TASKS_API
         self._task_landmarker: Any = None
@@ -57,6 +64,10 @@ class HandDetector:
             self._init_tasks_api(max_hands, min_detection_confidence, min_tracking_confidence)
         else:
             self._init_solutions_api(max_hands, min_detection_confidence, min_tracking_confidence)
+
+    @property
+    def backend(self) -> str:
+        return "tasks" if self._use_tasks else "solutions"
 
     def _init_solutions_api(self, max_hands: int, det_conf: float, track_conf: float) -> None:
         import mediapipe as mp
@@ -80,8 +91,6 @@ class HandDetector:
         if not os.path.exists(self._model_path):
             logger.info("Downloading hand landmark model...")
             try:
-                import urllib.request
-
                 urllib.request.urlretrieve(
                     "https://storage.googleapis.com/mediapipe-models/"
                     "hand_landmarker/hand_landmarker/float16/latest/"
@@ -103,28 +112,31 @@ class HandDetector:
         )
         self._task_landmarker = vision.HandLandmarker.create_from_options(options)
 
-    def process(self, frame: Any) -> bool:
-        """Process a BGR frame. Returns True if a hand was found."""
-        self._landmarks = []
+    def process(self, frame: Any) -> list[Point] | None:
+        """Detect on a BGR frame; returns normalised landmarks of the first hand, or None."""
+        self._landmarks = None
         if self._use_tasks:
-            return self._process_tasks(frame)
-        return self._process_solutions(frame)
+            self._landmarks = self._process_tasks(frame)
+        else:
+            self._landmarks = self._process_solutions(frame)
+        return self._landmarks
 
-    def _process_solutions(self, frame: Any) -> bool:
+    @property
+    def landmarks(self) -> list[Point] | None:
+        return self._landmarks
+
+    def _process_solutions(self, frame: Any) -> list[Point] | None:
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         rgb.flags.writeable = False
         self._results = self.hands.process(rgb)
         if self._results.multi_hand_landmarks:
             hand = self._results.multi_hand_landmarks[0]
-            h, w, _ = frame.shape
-            for idx, lm in enumerate(hand.landmark):
-                self._landmarks.append([idx, int(lm.x * w), int(lm.y * h)])
-            return True
-        return False
+            return [(float(lm.x), float(lm.y)) for lm in hand.landmark]
+        return None
 
-    def _process_tasks(self, frame: Any) -> bool:
+    def _process_tasks(self, frame: Any) -> list[Point] | None:
         if not self._task_landmarker:
-            return False
+            return None
         import mediapipe as mp
 
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -132,54 +144,19 @@ class HandDetector:
         self._results = self._task_landmarker.detect(mp_image)
         if self._results.hand_landmarks:
             hand = self._results.hand_landmarks[0]
+            return [(float(lm.x), float(lm.y)) for lm in hand]
+        return None
+
+    def draw(self, frame: Any, points_px: Any = None) -> Any:
+        """Draw the hand skeleton; ``points_px`` (filtered pixel points) wins if given."""
+        if points_px is not None:
+            return self._draw_points(frame, points_px)
+        if not self._use_tasks:
+            return self._draw_solutions(frame)
+        if self._landmarks is not None:
             h, w, _ = frame.shape
-            for idx, lm in enumerate(hand):
-                self._landmarks.append([idx, int(lm.x * w), int(lm.y * h)])
-            return True
-        return False
-
-    def _is_thumb_up(self) -> bool:
-        """
-        Thumb detection using palm-width ratio.
-        Measures thumb tip to index base distance vs palm width.
-        """
-        if len(self._landmarks) < 21:
-            return False
-
-        thumb_tip = self._landmarks[4]
-        index_mcp = self._landmarks[5]
-        pinky_mcp = self._landmarks[17]
-
-        palm_width = _distance(index_mcp, pinky_mcp)
-        if palm_width < 1:
-            return False
-
-        thumb_to_index = _distance(thumb_tip, index_mcp)
-        return thumb_to_index > palm_width * 0.6
-
-    def count_fingers(self) -> int:
-        """Count raised fingers (0-5), or -1 if no hand detected."""
-        if not self._landmarks or len(self._landmarks) < 21:
-            return -1
-
-        fingers = [1 if self._is_thumb_up() else 0]
-
-        # Index, middle, ring, pinky: tip must be above PIP by 15px minimum
-        for i in range(1, 5):
-            tip_y = self._landmarks[self.TIP_IDS[i]][2]
-            pip_y = self._landmarks[self.TIP_IDS[i] - 2][2]
-            fingers.append(1 if (pip_y - tip_y) > 15 else 0)
-
-        return sum(fingers)
-
-    def get_landmarks(self) -> list[Landmark]:
-        return self._landmarks.copy()
-
-    def draw(self, frame: Any) -> Any:
-        """Draw hand landmarks on the frame."""
-        if self._use_tasks:
-            return self._draw_manual(frame)
-        return self._draw_solutions(frame)
+            return self._draw_points(frame, [(x * w, y * h) for x, y in self._landmarks])
+        return frame
 
     def _draw_solutions(self, frame: Any) -> Any:
         if self._results and self._results.multi_hand_landmarks:
@@ -193,19 +170,16 @@ class HandDetector:
                 )
         return frame
 
-    def _draw_manual(self, frame: Any) -> Any:
-        if not self._landmarks:
-            return frame
+    @staticmethod
+    def _draw_points(frame: Any, points_px: Any) -> Any:
+        pts = [(round(x), round(y)) for x, y in points_px]
         for start, end in HAND_CONNECTIONS:
-            if start < len(self._landmarks) and end < len(self._landmarks):
-                pt1 = (self._landmarks[start][1], self._landmarks[start][2])
-                pt2 = (self._landmarks[end][1], self._landmarks[end][2])
-                cv2.line(frame, pt1, pt2, (0, 255, 0), 2)
-        for lm in self._landmarks:
-            cv2.circle(frame, (lm[1], lm[2]), 4, (0, 0, 255), cv2.FILLED)
+            cv2.line(frame, pts[start], pts[end], (0, 255, 0), 2)
+        for p in pts:
+            cv2.circle(frame, p, 4, (0, 0, 255), cv2.FILLED)
         return frame
 
-    def release(self) -> None:
+    def close(self) -> None:
         if self._use_tasks:
             if self._task_landmarker:
                 self._task_landmarker.close()
