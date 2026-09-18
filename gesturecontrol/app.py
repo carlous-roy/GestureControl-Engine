@@ -312,7 +312,6 @@ def run(opts: RunOptions, deps: Dependencies | None = None) -> int:  # noqa: PLR
     except KeyboardInterrupt:
         stop.request("keyboard interrupt")
     finally:
-        restore_signals()
         if heartbeat is not None:
             heartbeat.stop()
         if detector is not None:
@@ -323,6 +322,9 @@ def run(opts: RunOptions, deps: Dependencies | None = None) -> int:  # noqa: PLR
             display.close()
         if not controller.cleanup():
             exit_code = EXIT_UNSAFE
+        # Handlers stay installed until the relays are released, so a second
+        # signal during cleanup cannot cut it short.
+        restore_signals()
         if stop.reason:
             logger.info("Stopped: %s", stop.reason)
         logger.info("Done (exit code %d).", exit_code)

@@ -37,7 +37,7 @@ from typing import Any, TextIO
 from gesturecontrol import __version__
 from gesturecontrol.app import Detector, RunOptions, _default_detector, _default_source, _mirror
 from gesturecontrol.camera import FrameSource
-from gesturecontrol.controller import RelayController
+from gesturecontrol.controller import HeartbeatThread, RelayController
 from gesturecontrol.pipeline import GesturePipeline
 
 logger = logging.getLogger(__name__)
@@ -246,16 +246,21 @@ def bench(
         model_path=opts.model_path,
     )
     controller = RelayController(active_low=opts.active_low)
+    heartbeat: HeartbeatThread | None = None
     source: FrameSource | None = None
     detector: Detector | None = None
     try:
         if opts.port:
             controller.connect(opts.port)
+            heartbeat = HeartbeatThread(controller)
+            heartbeat.start()
         source = source_factory(run_opts)
         detector = detector_factory(run_opts)
         measured = _Stopwatch(opts, source, detector, controller, clock).measure()
         backend = getattr(detector, "backend", opts.backend)
     finally:
+        if heartbeat is not None:
+            heartbeat.stop()
         if detector is not None:
             detector.close()
         if source is not None:
