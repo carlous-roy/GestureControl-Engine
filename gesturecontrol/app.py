@@ -22,6 +22,7 @@ import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Protocol
 
 from gesturecontrol.camera import CameraError, FrameSource, open_source
@@ -36,6 +37,7 @@ from gesturecontrol.config import (
 )
 from gesturecontrol.controller import HardwareError, HeartbeatThread, RelayController
 from gesturecontrol.filters import Point
+from gesturecontrol.model import ModelError
 from gesturecontrol.pipeline import GesturePipeline
 
 logger = logging.getLogger(__name__)
@@ -64,10 +66,17 @@ class RunOptions:
     """Stop after this many frames (headless runs and tests)."""
     mirror: bool = True
     """Flip frames horizontally so the picture behaves like a mirror."""
+    detect_every_frame: bool = False
+    """Run MediaPipe's palm detector on every frame instead of tracking (benchmarking)."""
+    backend: str = "auto"
+    """MediaPipe API: auto, solutions or tasks."""
+    model_path: Path | None = None
+    """Hand landmarker bundle for the Tasks API (default: per-user cache)."""
+    allow_download: bool = True
 
 
 class Detector(Protocol):
-    def process(self, frame: Any) -> list[Point] | None: ...
+    def process(self, frame: Any, timestamp_ms: int | None = None) -> list[Point] | None: ...
 
     def draw(self, frame: Any, points_px: Any = None) -> Any: ...
 
@@ -102,9 +111,16 @@ class OpenCVDisplay:
 def _default_detector(opts: RunOptions) -> Detector:
     from gesturecontrol.detector import HandDetector
 
+    backend = opts.backend
+    if backend not in ("auto", "solutions", "tasks"):
+        raise ValueError(f"unknown backend {backend!r}")
     return HandDetector(
         min_detection_confidence=opts.detection_confidence,
         min_tracking_confidence=opts.tracking_confidence,
+        detect_every_frame=opts.detect_every_frame,
+        backend=backend,  # type: ignore[arg-type]
+        model_path=opts.model_path,
+        allow_download=opts.allow_download,
     )
 
 
@@ -223,7 +239,8 @@ def run(opts: RunOptions, deps: Dependencies | None = None) -> int:  # noqa: PLR
         frames = 0
         fps = 0.0
         fps_frames = 0
-        fps_since = deps.clock()
+        t_start = deps.clock()
+        fps_since = t_start
 
         while not stop.is_set():
             if heartbeat is not None and heartbeat.error is not None:
@@ -238,8 +255,9 @@ def run(opts: RunOptions, deps: Dependencies | None = None) -> int:  # noqa: PLR
             if pipeline is None:
                 pipeline = GesturePipeline(w, h)
 
-            landmarks = detector.process(frame)
-            result = pipeline.process(landmarks, deps.clock())
+            t = deps.clock()
+            landmarks = detector.process(frame, int((t - t_start) * 1000))
+            result = pipeline.process(landmarks, t)
             if result.changed:
                 controller.set_from_finger_count(result.confirmed_count)
                 logger.info(
@@ -288,6 +306,9 @@ def run(opts: RunOptions, deps: Dependencies | None = None) -> int:  # noqa: PLR
     except CameraError as e:
         logger.error("Camera failure: %s", e)
         exit_code = EXIT_RUNTIME if started else EXIT_SETUP
+    except ModelError as e:
+        logger.error("Model failure: %s", e)
+        exit_code = EXIT_SETUP
     except KeyboardInterrupt:
         stop.request("keyboard interrupt")
     finally:

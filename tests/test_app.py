@@ -56,7 +56,7 @@ class ScriptedDetector:
         self.calls = 0
         self.closed = False
 
-    def process(self, frame: Any) -> list[Point] | None:
+    def process(self, frame: Any, timestamp_ms: int | None = None) -> list[Point] | None:
         want = self.script[self.calls] if self.calls < len(self.script) else None
         self.calls += 1
         return None if want is None else list(want)

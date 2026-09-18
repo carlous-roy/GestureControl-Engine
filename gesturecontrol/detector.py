@@ -1,42 +1,43 @@
 """
 Hand landmark detection with MediaPipe Hands.
 
-Two MediaPipe APIs are supported and chosen at import time:
+MediaPipe Hands is a two-stage pipeline: a palm detector finds the hand
+region, and a landmark model regresses 21 points inside that region. In
+video (tracking) mode the palm detector runs only when there is no hand
+being tracked from the previous frame; every frame runs the landmark model,
+and the palm detector is invoked again when tracking is lost. Forcing the
+detector on every frame (``detect_every_frame=True``) is available for
+benchmarking the difference.
+
+Two MediaPipe APIs are supported:
 
 * the legacy Solutions API (``mediapipe.solutions.hands``, mediapipe
-  < 0.10.30), whose model files ship inside the wheel;
-* the Tasks API (``mediapipe.tasks.python.vision.HandLandmarker``), which
-  needs a model bundle downloaded on first use.
+  < 0.10.30), whose models ship inside the wheel; ``static_image_mode``
+  selects between tracking and detect-every-frame;
+* the Tasks API (``mediapipe.tasks.python.vision.HandLandmarker``,
+  any mediapipe >= 0.10.14), which needs the model bundle from
+  ``gesturecontrol.model``; ``RunningMode.VIDEO`` is the tracking mode and
+  ``RunningMode.IMAGE`` treats every frame as an unrelated still.
 
-Either way ``process`` returns the 21 normalised (x, y) landmarks of the
-first detected hand, or None. Classification happens elsewhere.
+``process`` returns the 21 normalised (x, y) landmarks of the first
+detected hand, or None. Classification happens elsewhere.
 """
 
 from __future__ import annotations
 
 import logging
-import os
-import tempfile
-import urllib.request
-from typing import Any
+from pathlib import Path
+from typing import Any, Literal
 
 import cv2
 
-from gesturecontrol.config import (
-    DEFAULT_DETECTION_CONFIDENCE,
-    DEFAULT_TRACKING_CONFIDENCE,
-)
+from gesturecontrol.config import DEFAULT_DETECTION_CONFIDENCE, DEFAULT_TRACKING_CONFIDENCE
 from gesturecontrol.filters import Point
+from gesturecontrol.model import ensure_model
 
 logger = logging.getLogger(__name__)
 
-_USE_TASKS_API = False
-try:
-    import mediapipe as mp
-
-    _ = mp.solutions.hands
-except AttributeError:
-    _USE_TASKS_API = True
+Backend = Literal["auto", "solutions", "tasks"]
 
 HAND_CONNECTIONS = [
     (0, 1), (1, 2), (2, 3), (3, 4),
@@ -48,75 +49,102 @@ HAND_CONNECTIONS = [
 ]  # fmt: skip
 
 
+def solutions_api_available() -> bool:
+    try:
+        import mediapipe as mp
+
+        return hasattr(mp, "solutions") and hasattr(mp.solutions, "hands")
+    except ImportError:
+        return False
+
+
+def mediapipe_version() -> str:
+    try:
+        import mediapipe as mp
+
+        return str(getattr(mp, "__version__", "unknown"))
+    except ImportError:
+        return "not installed"
+
+
 class HandDetector:
     def __init__(
         self,
+        *,
         max_hands: int = 1,
         min_detection_confidence: float = DEFAULT_DETECTION_CONFIDENCE,
         min_tracking_confidence: float = DEFAULT_TRACKING_CONFIDENCE,
+        detect_every_frame: bool = False,
+        backend: Backend = "auto",
+        model_path: Path | None = None,
+        allow_download: bool = True,
     ) -> None:
         self._landmarks: list[Point] | None = None
         self._results: Any = None
-        self._use_tasks = _USE_TASKS_API
+        self._detect_every_frame = detect_every_frame
+        self._last_timestamp_ms = -1
         self._task_landmarker: Any = None
+        self.hands: Any = None
 
-        if self._use_tasks:
-            self._init_tasks_api(max_hands, min_detection_confidence, min_tracking_confidence)
+        if backend == "auto":
+            backend = "solutions" if solutions_api_available() else "tasks"
+        self._backend: Literal["solutions", "tasks"] = backend
+        if backend == "solutions":
+            self._init_solutions(max_hands, min_detection_confidence, min_tracking_confidence)
         else:
-            self._init_solutions_api(max_hands, min_detection_confidence, min_tracking_confidence)
+            self.model_path = ensure_model(model_path, allow_download=allow_download)
+            self._init_tasks(max_hands, min_detection_confidence, min_tracking_confidence)
+        logger.info(
+            "MediaPipe %s, %s API, %s",
+            mediapipe_version(),
+            self._backend,
+            "palm detection on every frame" if detect_every_frame else "tracking mode",
+        )
 
     @property
     def backend(self) -> str:
-        return "tasks" if self._use_tasks else "solutions"
+        return self._backend
 
-    def _init_solutions_api(self, max_hands: int, det_conf: float, track_conf: float) -> None:
+    @property
+    def detect_every_frame(self) -> bool:
+        return self._detect_every_frame
+
+    def _init_solutions(self, max_hands: int, det_conf: float, track_conf: float) -> None:
         import mediapipe as mp
 
         self.mp_hands = mp.solutions.hands
         self.mp_draw = mp.solutions.drawing_utils
         self.mp_styles = mp.solutions.drawing_styles
         self.hands = self.mp_hands.Hands(
-            static_image_mode=False,
+            static_image_mode=self._detect_every_frame,
             max_num_hands=max_hands,
             min_detection_confidence=det_conf,
             min_tracking_confidence=track_conf,
         )
 
-    def _init_tasks_api(self, max_hands: int, det_conf: float, track_conf: float) -> None:
+    def _init_tasks(self, max_hands: int, det_conf: float, track_conf: float) -> None:
         from mediapipe.tasks import python as mp_python
         from mediapipe.tasks.python import vision
 
-        self._model_path = os.path.join(tempfile.gettempdir(), "hand_landmarker.task")
-
-        if not os.path.exists(self._model_path):
-            logger.info("Downloading hand landmark model...")
-            try:
-                urllib.request.urlretrieve(
-                    "https://storage.googleapis.com/mediapipe-models/"
-                    "hand_landmarker/hand_landmarker/float16/latest/"
-                    "hand_landmarker.task",
-                    self._model_path,
-                )
-            except OSError as e:
-                logger.warning("Could not download model: %s", e)
-                return
-
-        base_options = mp_python.BaseOptions(model_asset_path=self._model_path)
+        mode = vision.RunningMode.IMAGE if self._detect_every_frame else vision.RunningMode.VIDEO
         options = vision.HandLandmarkerOptions(
-            base_options=base_options,
+            base_options=mp_python.BaseOptions(model_asset_path=str(self.model_path)),
             num_hands=max_hands,
             min_hand_detection_confidence=det_conf,
             min_hand_presence_confidence=track_conf,
             min_tracking_confidence=track_conf,
-            running_mode=vision.RunningMode.IMAGE,
+            running_mode=mode,
         )
         self._task_landmarker = vision.HandLandmarker.create_from_options(options)
 
-    def process(self, frame: Any) -> list[Point] | None:
-        """Detect on a BGR frame; returns normalised landmarks of the first hand, or None."""
-        self._landmarks = None
-        if self._use_tasks:
-            self._landmarks = self._process_tasks(frame)
+    def process(self, frame: Any, timestamp_ms: int | None = None) -> list[Point] | None:
+        """Detect on a BGR frame; returns normalised landmarks of the first hand, or None.
+
+        ``timestamp_ms`` must increase from frame to frame for the Tasks API
+        video mode; when omitted, a counter is used.
+        """
+        if self._backend == "tasks":
+            self._landmarks = self._process_tasks(frame, timestamp_ms)
         else:
             self._landmarks = self._process_solutions(frame)
         return self._landmarks
@@ -134,14 +162,19 @@ class HandDetector:
             return [(float(lm.x), float(lm.y)) for lm in hand.landmark]
         return None
 
-    def _process_tasks(self, frame: Any) -> list[Point] | None:
-        if not self._task_landmarker:
-            return None
+    def _process_tasks(self, frame: Any, timestamp_ms: int | None) -> list[Point] | None:
         import mediapipe as mp
 
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-        self._results = self._task_landmarker.detect(mp_image)
+        if self._detect_every_frame:
+            self._results = self._task_landmarker.detect(mp_image)
+        else:
+            ts = self._last_timestamp_ms + 1 if timestamp_ms is None else timestamp_ms
+            if ts <= self._last_timestamp_ms:
+                ts = self._last_timestamp_ms + 1
+            self._last_timestamp_ms = ts
+            self._results = self._task_landmarker.detect_for_video(mp_image, ts)
         if self._results.hand_landmarks:
             hand = self._results.hand_landmarks[0]
             return [(float(lm.x), float(lm.y)) for lm in hand]
@@ -151,10 +184,10 @@ class HandDetector:
         """Draw the hand skeleton; ``points_px`` (filtered pixel points) wins if given."""
         if points_px is not None:
             return self._draw_points(frame, points_px)
-        if not self._use_tasks:
+        if self._backend == "solutions":
             return self._draw_solutions(frame)
         if self._landmarks is not None:
-            h, w, _ = frame.shape
+            h, w = frame.shape[:2]
             return self._draw_points(frame, [(x * w, y * h) for x, y in self._landmarks])
         return frame
 
@@ -180,8 +213,9 @@ class HandDetector:
         return frame
 
     def close(self) -> None:
-        if self._use_tasks:
-            if self._task_landmarker:
-                self._task_landmarker.close()
-        else:
+        if self._task_landmarker is not None:
+            self._task_landmarker.close()
+            self._task_landmarker = None
+        if self.hands is not None:
             self.hands.close()
+            self.hands = None

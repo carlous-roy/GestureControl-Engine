@@ -4,6 +4,10 @@ on:
   push:
   pull_request:
 
+env:
+  # Pinned hand landmarker bundle (see gesturecontrol/config.py); cached per checksum.
+  MODEL_SHA256: fbc2a30080c3c557093b5ddfc334698132eb341044ccee322ccf8bcf3607cde1
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -21,6 +25,7 @@ jobs:
       - run: mypy
 
   test:
+    name: test (legacy Solutions API, py${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -34,10 +39,33 @@ jobs:
           cache: pip
       - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgl1 libglib2.0-0
       - run: python -m pip install --upgrade pip
-      - run: python -m pip install -e ".[dev]"
+      - run: python -m pip install -e ".[dev]" "mediapipe<0.10.30"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/gesturecontrol
+          key: hand-landmarker-${{ env.MODEL_SHA256 }}
       - run: python -m pytest --cov=gesturecontrol --cov-report=term-missing
       - name: End-to-end smoke test without hardware
         run: gesturecontrol simulate
+
+  test-tasks-api:
+    name: test (Tasks API, current mediapipe)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgl1 libglib2.0-0
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]" "mediapipe>=1.0,<1.1"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/gesturecontrol
+          key: hand-landmarker-${{ env.MODEL_SHA256 }}
+      - run: python -m pytest -q
+      - run: gesturecontrol simulate
 
   firmware:
     runs-on: ubuntu-latest

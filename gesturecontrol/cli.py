@@ -13,6 +13,7 @@ import argparse
 import logging
 import sys
 from collections.abc import Callable, Sequence
+from pathlib import Path
 
 from gesturecontrol import __version__
 from gesturecontrol.app import RunOptions, run
@@ -54,6 +55,26 @@ def add_camera_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--no-mirror", action="store_true", help="do not flip the picture horizontally"
     )
+    parser.add_argument(
+        "--detect-every-frame",
+        action="store_true",
+        help="run the palm detector on every frame instead of tracking (for benchmarks)",
+    )
+    parser.add_argument(
+        "--backend",
+        choices=("auto", "solutions", "tasks"),
+        default="auto",
+        help="MediaPipe API to use (default: solutions when installed, else tasks)",
+    )
+    parser.add_argument(
+        "--model",
+        type=Path,
+        default=None,
+        help="hand landmarker bundle for the Tasks API (default: per-user cache)",
+    )
+    parser.add_argument(
+        "--no-download", action="store_true", help="fail instead of fetching a missing model"
+    )
 
 
 def add_relay_arguments(parser: argparse.ArgumentParser) -> None:
@@ -92,6 +113,10 @@ def cmd_run(args: argparse.Namespace) -> int:
         min_switch_interval=args.min_switch_interval,
         max_frames=args.max_frames,
         mirror=not args.no_mirror,
+        detect_every_frame=args.detect_every_frame,
+        backend=args.backend,
+        model_path=args.model,
+        allow_download=not args.no_download,
     )
     return run(opts)
 
