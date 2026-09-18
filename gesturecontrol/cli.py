@@ -96,10 +96,45 @@ def cmd_run(args: argparse.Namespace) -> int:
     return run(opts)
 
 
+def build_simulate_parser(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("scenarios", nargs="*", help="scenario names (default: all)")
+    parser.add_argument("--list", action="store_true", help="list scenarios and exit")
+    parser.add_argument("--realtime", action="store_true", help="replay at the scenario frame rate")
+    parser.add_argument(
+        "--verbose-frames", action="store_true", help="print every frame, not only changes"
+    )
+    parser.add_argument(
+        "--min-switch-interval",
+        type=float,
+        default=MIN_SWITCH_INTERVAL_S,
+        metavar="SECONDS",
+        help="relay switching interval to simulate (default: %(default)s)",
+    )
+
+
+def cmd_simulate(args: argparse.Namespace) -> int:
+    from gesturecontrol.simulate import list_scenarios, simulate
+
+    if args.list:
+        list_scenarios()
+        return 0
+    return simulate(
+        args.scenarios,
+        min_switch_interval=args.min_switch_interval,
+        realtime=args.realtime,
+        verbose=args.verbose_frames,
+    )
+
+
 Command = tuple[str, Callable[[argparse.ArgumentParser], None], Callable[[argparse.Namespace], int]]
 
 COMMANDS: dict[str, Command] = {
     "run": ("run the camera-to-relay loop (default)", build_run_parser, cmd_run),
+    "simulate": (
+        "replay scripted landmark sequences through the classifier and relay logic",
+        build_simulate_parser,
+        cmd_simulate,
+    ),
 }
 
 
