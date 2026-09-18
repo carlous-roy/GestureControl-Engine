@@ -151,6 +151,55 @@ def cmd_simulate(args: argparse.Namespace) -> int:
     )
 
 
+def build_bench_parser(parser: argparse.ArgumentParser) -> None:
+    add_camera_arguments(parser)
+    add_relay_arguments(parser)
+    parser.add_argument(
+        "--frames", type=int, default=300, help="frames to measure (default: %(default)s)"
+    )
+    parser.add_argument(
+        "--warmup", type=int, default=10, help="frames to discard first (default: %(default)s)"
+    )
+    parser.add_argument(
+        "--csv",
+        type=Path,
+        default=Path("bench.csv"),
+        help="per-frame CSV output; a .json summary is written next to it (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--label", default="", help="free text for the summary, e.g. machine and camera model"
+    )
+
+
+def cmd_bench(args: argparse.Namespace) -> int:
+    from gesturecontrol.bench import BenchOptions, bench
+    from gesturecontrol.camera import CameraError
+    from gesturecontrol.controller import HardwareError
+    from gesturecontrol.model import ModelError
+
+    opts = BenchOptions(
+        source=args.camera,
+        frames=args.frames,
+        warmup=args.warmup,
+        width=args.width,
+        height=args.height,
+        detect_every_frame=args.detect_every_frame,
+        backend=args.backend,
+        model_path=args.model,
+        csv_path=args.csv,
+        port=args.port,
+        active_low=not args.active_high,
+        mirror=not args.no_mirror,
+        label=args.label,
+    )
+    try:
+        result = bench(opts)
+    except (CameraError, HardwareError, ModelError) as e:
+        logger.error("%s", e)
+        return 2
+    return 0 if result.frames > 0 else 1
+
+
 Command = tuple[str, Callable[[argparse.ArgumentParser], None], Callable[[argparse.Namespace], int]]
 
 COMMANDS: dict[str, Command] = {
@@ -159,6 +208,11 @@ COMMANDS: dict[str, Command] = {
         "replay scripted landmark sequences through the classifier and relay logic",
         build_simulate_parser,
         cmd_simulate,
+    ),
+    "bench": (
+        "measure per-stage latency and end-to-end frame rate, to CSV",
+        build_bench_parser,
+        cmd_bench,
     ),
 }
 
