@@ -1,20 +1,19 @@
 """Tests for the relay controller. Run with: pytest tests/ -v"""
 
-import sys, os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from src.controller import RelayController
+from __future__ import annotations
+
+from gesturecontrol.controller import RelayController
 
 
 class TestRelayController:
-
-    def setup_method(self):
+    def setup_method(self) -> None:
         self.ctrl = RelayController()
 
-    def test_initial_state(self):
+    def test_initial_state(self) -> None:
         assert self.ctrl.states == [False, False, False, False]
         assert self.ctrl.is_connected is False
 
-    def test_finger_counts(self):
+    def test_finger_counts(self) -> None:
         expected = {
             0: [False, False, False, False],
             1: [True, False, False, False],
@@ -27,29 +26,29 @@ class TestRelayController:
             self.ctrl.set_from_finger_count(count)
             assert self.ctrl.states == states, f"Failed for {count} fingers"
 
-    def test_invalid_count(self):
+    def test_invalid_count(self) -> None:
         self.ctrl.set_from_finger_count(5)
         self.ctrl.set_from_finger_count(9)
         assert self.ctrl.states == [False, False, False, False]
 
-    def test_set_individual_relay(self):
+    def test_set_individual_relay(self) -> None:
         self.ctrl.set_relay(2, True)
         assert self.ctrl.states == [False, False, True, False]
 
-    def test_out_of_bounds(self):
+    def test_out_of_bounds(self) -> None:
         self.ctrl.set_relay(10, True)
         assert self.ctrl.states == [False, False, False, False]
 
-    def test_set_all(self):
+    def test_set_all(self) -> None:
         self.ctrl.set_all([True, False, True, False])
         assert self.ctrl.states == [True, False, True, False]
 
-    def test_cleanup(self):
+    def test_cleanup(self) -> None:
         self.ctrl.set_from_finger_count(5)
         self.ctrl.cleanup()
         assert self.ctrl.states == [False, False, False, False]
 
-    def test_transitions(self):
+    def test_transitions(self) -> None:
         for i in range(6):
             self.ctrl.set_from_finger_count(i)
             if i == 0:

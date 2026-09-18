@@ -3,6 +3,11 @@ Draws real-time status overlay on the camera feed:
 finger count, relay indicators, FPS, and connection status.
 """
 
+from __future__ import annotations
+
+from collections.abc import Sequence
+from typing import Any
+
 import cv2
 
 GREEN = (0, 200, 0)
@@ -15,14 +20,23 @@ YELLOW = (0, 255, 255)
 FONT = cv2.FONT_HERSHEY_SIMPLEX
 
 GESTURE_LABELS = {
-    -1: "No Hand", 0: "ALL OFF",
-    1: "Appliance 1 ON", 2: "Appliance 2 ON",
-    3: "Appliance 3 ON", 4: "Appliance 4 ON",
+    -1: "No Hand",
+    0: "ALL OFF",
+    1: "Appliance 1 ON",
+    2: "Appliance 2 ON",
+    3: "Appliance 3 ON",
+    4: "Appliance 4 ON",
     5: "ALL ON",
 }
 
 
-def draw_overlay(frame, finger_count, relay_states, fps, hw_connected):
+def draw_overlay(
+    frame: Any,
+    finger_count: int,
+    relay_states: Sequence[bool],
+    fps: float,
+    hw_connected: bool,
+) -> Any:
     h, w, _ = frame.shape
 
     cv2.putText(frame, "Gesture Automation System", (10, 30), FONT, 0.65, WHITE, 2)
@@ -32,11 +46,13 @@ def draw_overlay(frame, finger_count, relay_states, fps, hw_connected):
     y = h - 55
     hand_ok = finger_count >= 0
     cv2.circle(frame, (20, y), 5, GREEN if hand_ok else RED, cv2.FILLED)
-    cv2.putText(frame, f"Hand: {'Detected' if hand_ok else 'None'}", (32, y + 4), FONT, 0.4, WHITE, 1)
+    hand_text = f"Hand: {'Detected' if hand_ok else 'None'}"
+    cv2.putText(frame, hand_text, (32, y + 4), FONT, 0.4, WHITE, 1)
 
     hw_color = GREEN if hw_connected else ORANGE
     cv2.circle(frame, (20, y + 22), 5, hw_color, cv2.FILLED)
-    cv2.putText(frame, "Arduino: Connected" if hw_connected else "Mode: Simulation", (32, y + 26), FONT, 0.4, WHITE, 1)
+    hw_text = "Arduino: Connected" if hw_connected else "Mode: Simulation"
+    cv2.putText(frame, hw_text, (32, y + 26), FONT, 0.4, WHITE, 1)
 
     # Relay LEDs (right side)
     rx = w - 45
@@ -46,8 +62,9 @@ def draw_overlay(frame, finger_count, relay_states, fps, hw_connected):
         is_on = relay_states[i] if i < len(relay_states) else False
         cv2.circle(frame, (rx, cy), 14, WHITE, 1)
         cv2.circle(frame, (rx, cy), 12, GREEN if is_on else GRAY, cv2.FILLED)
-        cv2.putText(frame, f"R{i+1}", (rx - 8, cy + 4), FONT, 0.32, WHITE, 1)
-        cv2.putText(frame, "ON" if is_on else "OFF", (rx - 12, cy + 26), FONT, 0.28, GREEN if is_on else GRAY, 1)
+        cv2.putText(frame, f"R{i + 1}", (rx - 8, cy + 4), FONT, 0.32, WHITE, 1)
+        state_color = GREEN if is_on else GRAY
+        cv2.putText(frame, "ON" if is_on else "OFF", (rx - 12, cy + 26), FONT, 0.28, state_color, 1)
 
     # Finger count box (bottom-center)
     label = GESTURE_LABELS.get(finger_count, "Unknown")
@@ -60,7 +77,8 @@ def draw_overlay(frame, finger_count, relay_states, fps, hw_connected):
     overlay = frame.copy()
     cv2.rectangle(overlay, (box_x, box_y), (box_x + box_w, box_y + box_h), DARK_BG, cv2.FILLED)
     cv2.addWeighted(overlay, 0.75, frame, 0.25, 0, frame)
-    cv2.rectangle(frame, (box_x, box_y), (box_x + box_w, box_y + box_h), GREEN if finger_count >= 0 else RED, 2)
+    box_color = GREEN if finger_count >= 0 else RED
+    cv2.rectangle(frame, (box_x, box_y), (box_x + box_w, box_y + box_h), box_color, 2)
     cv2.putText(frame, count_str, (box_x + 15, box_y + 45), FONT, 1.5, GREEN, 3)
     cv2.putText(frame, label, (box_x + 60, box_y + 42), FONT, 0.6, WHITE, 2)
 
