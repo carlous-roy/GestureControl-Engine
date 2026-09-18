@@ -45,6 +45,9 @@ Demo = "https://gesture.roycarlous.com"
 [tool.setuptools]
 packages = ["gesturecontrol"]
 
+[tool.setuptools.package-data]
+gesturecontrol = ["rules.json", "data/*.json"]
+
 [tool.setuptools.dynamic]
 version = { attr = "gesturecontrol.__version__" }
 

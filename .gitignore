@@ -13,3 +13,5 @@ venv/
 .DS_Store
 screenshots/
 *.log
+/bench.csv
+/bench.json
