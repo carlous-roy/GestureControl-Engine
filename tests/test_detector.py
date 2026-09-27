@@ -10,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
+import numpy.typing as npt
 import pytest
 
 from gesturecontrol.detector import HandDetector, solutions_api_available
@@ -18,7 +19,7 @@ from gesturecontrol.model import ModelError
 mediapipe = pytest.importorskip("mediapipe")
 
 
-def _blank_frame() -> np.ndarray:  # type: ignore[type-arg]
+def _blank_frame() -> npt.NDArray[np.uint8]:
     frame = np.full((480, 640, 3), 90, dtype=np.uint8)
     frame[100:380, 200:440] = (60, 120, 200)  # a coloured block, not a hand
     return frame

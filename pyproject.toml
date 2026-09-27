@@ -72,7 +72,10 @@ ignore = [
 "tests/*" = ["PLR0915", "PLR0912"]
 
 [tool.mypy]
-python_version = "3.10"
+# Checked as 3.12 because current numpy stubs use 3.12-only syntax (PEP 695 type
+# statements) that mypy rejects under an older target. The 3.10 language baseline
+# for the project's own code is enforced by ruff's target-version.
+python_version = "3.12"
 strict = true
 warn_unreachable = true
 files = ["gesturecontrol", "tests", "simulation"]
