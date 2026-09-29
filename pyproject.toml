@@ -22,7 +22,13 @@ classifiers = [
 # OpenCV distribution is listed here so that only one package owns cv2.
 # mediapipe < 0.10.30 ships the legacy Solutions API (bundled model);
 # mediapipe >= 0.10.30 ships only the Tasks API (model fetched on first run).
-dependencies = ["mediapipe>=0.10.14,<1.1"]
+# On macOS the 1.0.1 wheel aborts the process while building the hand
+# landmarker graph (google-ai-edge/mediapipe#6356), so macOS stays on 1.0.0
+# or the 0.10 line until a release fixes it.
+dependencies = [
+    'mediapipe>=0.10.14,<1.1; sys_platform != "darwin"',
+    'mediapipe>=0.10.14,<1.0.1; sys_platform == "darwin"',
+]
 
 [project.optional-dependencies]
 hardware = ["pyfirmata2>=2.5,<3"]
