@@ -36,10 +36,11 @@ def cache_dir() -> Path:
     if sys.platform == "win32":
         base = os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local"
         return Path(base) / "gesturecontrol" / "Cache"
-    if sys.platform == "darwin":
+    elif sys.platform == "darwin":
         return Path.home() / "Library" / "Caches" / "gesturecontrol"
-    base = os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache"
-    return Path(base) / "gesturecontrol"
+    else:
+        base = os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache"
+        return Path(base) / "gesturecontrol"
 
 
 def default_model_path() -> Path:
