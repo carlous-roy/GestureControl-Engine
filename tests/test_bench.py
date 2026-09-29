@@ -4,7 +4,7 @@ import csv
 import io
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import pytest
@@ -110,7 +110,10 @@ def test_bench_on_a_video_file_with_real_mediapipe(tmp_path: Path) -> None:
     cv2 = pytest.importorskip("cv2")
     pytest.importorskip("mediapipe")
     from gesturecontrol.detector import HandDetector, solutions_api_available
-    from gesturecontrol.model import ModelError
+    from tests.native import require_backend
+
+    backend: Literal["solutions", "tasks"] = "solutions" if solutions_api_available() else "tasks"
+    require_backend(backend)
 
     video = tmp_path / "blank.avi"
     writer = cv2.VideoWriter(str(video), cv2.VideoWriter_fourcc(*"MJPG"), 30.0, (320, 240))
@@ -121,12 +124,7 @@ def test_bench_on_a_video_file_with_real_mediapipe(tmp_path: Path) -> None:
     writer.release()
 
     def detector_factory(o: RunOptions) -> HandDetector:
-        try:
-            if solutions_api_available():
-                return HandDetector(backend="solutions", detect_every_frame=o.detect_every_frame)
-            return HandDetector(backend="tasks", detect_every_frame=o.detect_every_frame)
-        except ModelError as e:
-            pytest.skip(f"model bundle not available: {e}")
+        return HandDetector(backend=backend, detect_every_frame=o.detect_every_frame)
 
     out = io.StringIO()
     result = bench(

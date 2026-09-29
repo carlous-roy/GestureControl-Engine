@@ -214,6 +214,13 @@ python scripts/sync_demo_fixtures.py     # copy shared files into demo/
 cd demo && npm ci && npm test            # JavaScript parity test
 ```
 
+The detector and bench tests run real MediaPipe inference on synthetic frames.
+Before the first of them, `tests/native.py` builds a detector in a child
+process: MediaPipe's graph builder aborts the interpreter rather than raising
+on some platform and version combinations, and the child turns that into a
+failure that names the backend and shows MediaPipe's own message instead of
+ending the run with nothing but "Abort trap".
+
 Layout:
 
 ```

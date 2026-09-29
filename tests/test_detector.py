@@ -15,6 +15,7 @@ import pytest
 
 from gesturecontrol.detector import HandDetector, solutions_api_available
 from gesturecontrol.model import ModelError
+from tests.native import require_backend
 
 mediapipe = pytest.importorskip("mediapipe")
 
@@ -28,6 +29,7 @@ def _blank_frame() -> npt.NDArray[np.uint8]:
 @pytest.mark.skipif(not solutions_api_available(), reason="legacy Solutions API not installed")
 @pytest.mark.parametrize("every_frame", [False, True])
 def test_solutions_backend_runs_and_reports_no_hand(every_frame: bool) -> None:
+    require_backend("solutions")
     det = HandDetector(backend="solutions", detect_every_frame=every_frame)
     try:
         assert det.backend == "solutions"
@@ -50,10 +52,8 @@ def _tasks_available() -> bool:
 @pytest.mark.skipif(not _tasks_available(), reason="MediaPipe Tasks API not installed")
 @pytest.mark.parametrize("every_frame", [False, True])
 def test_tasks_backend_runs_in_video_or_image_mode(every_frame: bool) -> None:
-    try:
-        det = HandDetector(backend="tasks", detect_every_frame=every_frame)
-    except ModelError as e:
-        pytest.skip(f"model bundle not available: {e}")
+    require_backend("tasks")
+    det = HandDetector(backend="tasks", detect_every_frame=every_frame)
     try:
         assert det.backend == "tasks"
         for i in range(3):
