@@ -1,6 +1,6 @@
-# Technical Report: Gesture-Based Relay Control
+# Technical report: gesture-based relay control
 
-**System design, implementation, verification and limitations**
+System design, implementation, verification and limitations.
 
 ---
 
@@ -108,8 +108,8 @@ the controller is built around a few rules:
   (0.5 s); a change requested inside the window is applied when it ends,
   and a change reversed before then is dropped;
 - every serial write is guarded; one reconnect is attempted, with the relay
-  levels restored, and a second failure stops the program with a clear
-  message that the relay states are unknown;
+  levels restored, and a second failure stops the program and reports that
+  the relay states are unknown;
 - cleanup drives every relay to its off level and closes the board on every
   exit path: normal quit, `SIGINT`, `SIGTERM`, `SIGHUP`, camera failure,
   board failure, unhandled errors. It never raises, and a failure to release
@@ -209,8 +209,7 @@ the frame rate of the loop on a laptop with a camera.
 - Frame rate and latency are unmeasured until the bench is run on real
   hardware.
 - The watchdog firmware compiles and is tested on the host side against a
-  fake device; it has not yet been run on a board within this repository's
-  history.
+  fake device; it has not yet been run on a board.
 
 ---
 

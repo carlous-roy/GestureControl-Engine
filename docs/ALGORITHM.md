@@ -186,7 +186,7 @@ other  off off off off
   a relay that changed less than this long ago keeps its state; the
   requested state is stored and applied on the next loop iteration once
   the interval has passed. A request that is reversed before the interval
-  ends is simply cancelled, which collapses chatter.
+  ends is cancelled, which collapses chatter.
 - Serial writes: on an `OSError` the controller closes the board, opens it
   again, restores the relay levels and retries once; a second failure
   raises and the loop shuts down.

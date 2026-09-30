@@ -3,10 +3,10 @@
 The page at https://gesture.roycarlous.com is built from this folder. It
 runs MediaPipe Hands in the browser and shows a simulated relay panel.
 
-The classifier is not a reimplementation: `src/gesture/` is a line-for-line
-port of the engine's filter (`gesturecontrol/filters.py`), rules
-(`gesturecontrol/rules.py`) and confirmation (`gesturecontrol/stabilizer.py`,
-`gesturecontrol/pipeline.py`). Both read the same constants:
+`src/gesture/` is a line-for-line port of the engine's filter
+(`gesturecontrol/filters.py`), rules (`gesturecontrol/rules.py`) and
+confirmation (`gesturecontrol/stabilizer.py`, `gesturecontrol/pipeline.py`).
+Both read the same constants:
 
 - `src/gesture/rules.json` is a copy of `gesturecontrol/rules.json`;
 - `test/golden_vectors.json` is a copy of `fixtures/golden_vectors.json`,

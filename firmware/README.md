@@ -46,7 +46,6 @@ but a hung microcontroller with power does not. There is no read-back of
 the relay contacts either. See the safety section of the main README.
 
 The sketch compiles for `arduino:avr:uno` with Firmata 2.5.9 (CI does this
-with arduino-cli on every push). It has not yet been run on a board in this
-repository's history; the first hardware run should watch the log lines
-above and the relay LEDs at connect, at Ctrl-C, and after pulling the USB
-cable with a relay on.
+with arduino-cli on every push). It has not yet been run on a board; the
+first hardware run should watch the log lines above and the relay LEDs at
+connect, at Ctrl-C, and after pulling the USB cable with a relay on.

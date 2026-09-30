@@ -1,4 +1,4 @@
-// GestureControl demo — browser-based hand tracking with MediaPipe.
+// GestureControl demo: browser-based hand tracking with MediaPipe.
 // The finger rules, the One Euro filter and the 3-frame confirmation are the
 // same code path as the Python engine (src/gesture/, checked against the
 // shared golden vectors in test/golden_vectors.json); only the relays are
@@ -8,12 +8,9 @@ import { GesturePipeline, DEFAULT_RULES } from "./gesture/pipeline.js";
 
 /**
  * The @mediapipe/* packages ship UMD bundles that assign to `window` rather
- * than exposing real ES named exports. Vite's production build turns the
- * named destructure into `undefined`, which showed up at runtime as
- * "C is not a constructor" (C being the minified `Hands`).
- *
- * Resolve from the module when that works, and otherwise load the UMD build
- * from the CDN and read the globals.
+ * than exposing ES named exports, so a named import can be `undefined` in
+ * Vite's production build. Resolve from the module when that works, and
+ * otherwise load the UMD build from the CDN and read the globals.
  */
 const MP_CDN = "https://cdn.jsdelivr.net/npm";
 
@@ -314,7 +311,7 @@ export default function App() {
         <section id="demo" className="mb-16" style={{ animation: "slideUp 0.5s ease-out 0.2s both" }}>
           <p className="font-mono text-sm font-medium tracking-widest uppercase mb-2" style={{ color: "#DC2626" }}>Live Demo</p>
           <p className="text-gray-400 text-sm mb-6 max-w-[520px]">
-            Runs MediaPipe Hands entirely in your browser. No data leaves your device. Show 0-5 fingers; a count that holds for {CONFIRM_FRAMES} consecutive frames switches the relay panel, exactly as it switches the relays in the Python engine.
+            Runs MediaPipe Hands entirely in your browser. No data leaves your device. Show 0-5 fingers; a count that holds for {CONFIRM_FRAMES} consecutive frames switches the relay panel, as it switches the relays in the Python engine.
           </p>
 
           <div className="grid grid-cols-[1fr_280px] gap-5 items-start">
@@ -592,7 +589,7 @@ GND    ──────────>   GND`}</pre>
       {/* Footer */}
       <footer className="border-t border-white/[0.06] py-6">
         <div className="max-w-[1000px] mx-auto px-6 flex items-center justify-between text-xs text-gray-600">
-          <span>GestureControl · AI Gesture Home Automation · <a href="https://roycarlous.com" className="hover:text-white transition-colors no-underline text-gray-500">Roy Carlous Christudass</a></span>
+          <span>GestureControl · AI Gesture Based Home Automation · <a href="https://roycarlous.com" className="hover:text-white transition-colors no-underline text-gray-500">Roy Carlous Christudass</a></span>
           <span>Browser demo · <a href="https://github.com/carlous-roy/GestureControl-Engine" className="hover:text-white transition-colors no-underline text-gray-500">Full version on GitHub</a></span>
         </div>
       </footer>

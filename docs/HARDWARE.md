@@ -56,9 +56,9 @@ Then run without loads and watch the LEDs: at connect all four should be
 off, a fist should keep them off, one finger should light relay 1 only,
 and `Ctrl-C` should switch everything off. Only then wire the loads.
 
-The original 2022 build drove the module through a ULN2003 driver, which
-inverts the signal; the 2026 code drives the module inputs directly. If
-you keep a driver stage, its inversion changes the effective polarity.
+The 2022 build drove the module through a ULN2003 driver, which inverts
+the signal; this code drives the module inputs directly. If you keep a
+driver stage, its inversion changes the effective polarity.
 
 ## Firmata
 

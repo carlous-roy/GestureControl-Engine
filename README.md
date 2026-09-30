@@ -17,31 +17,34 @@ Firmata.
 Webcam --> MediaPipe Hands --> One Euro filter --> finger rules --> 3-frame confirmation --> relays
 ```
 
-- **Detection.** MediaPipe Hands is a two-stage pipeline: a palm detector
-  finds the hand region and a landmark model regresses 21 points inside it.
-  In tracking mode the palm detector runs only when no hand is being
-  tracked; the landmark model runs on every frame.
-- **Filtering.** Landmark coordinates pass through a One Euro filter
-  (Casiez, Roussel and Vogel, CHI 2012), which smooths jitter at rest and
-  follows fast motion with little lag.
-- **Rules.** Every measurement is taken in the hand's own frame: the up axis
-  runs from the wrist to the middle-finger MCP, the side axis points to the
-  thumb, and palm width is the unit of length. A finger is extended when its
-  tip lies beyond its PIP joint along the up axis by more than 0.35 palm
-  widths; the thumb is extended when its tip lies beyond the index MCP along
-  the side axis by more than 0.40 palm widths. Each finger latches with
-  hysteresis (it lowers below 0.25 and 0.30 respectively). Because the frame
-  rotates with the hand and the measures are ratios, the count does not
-  change with camera distance, resolution, mirroring, left or right hand, or
-  rotation in the image plane.
-- **Confirmation.** A count reaches the relays only after three consecutive
-  frames with a hand present. Losing the hand resets that run; the relays
-  keep their state until a new count is confirmed. A fist turns everything
-  off.
-- **Relays.** Active-low by default, a minimum switching interval per relay,
-  guarded serial writes with one reconnect, de-energised on every exit path,
-  and an optional Arduino watchdog that releases the relays if the host
-  stops sending heartbeats.
+MediaPipe Hands is a two-stage pipeline: a palm detector finds the hand
+region and a landmark model regresses 21 points inside it. In tracking mode
+the palm detector runs only when no hand is being tracked; the landmark
+model runs on every frame.
+
+Landmark coordinates pass through a One Euro filter (Casiez, Roussel and
+Vogel, CHI 2012), which smooths jitter at rest and follows fast motion with
+little lag.
+
+Every measurement is taken in the hand's own frame: the up axis runs from
+the wrist to the middle-finger MCP, the side axis points to the thumb, and
+palm width is the unit of length. A finger is extended when its tip lies
+beyond its PIP joint along the up axis by more than 0.35 palm widths; the
+thumb is extended when its tip lies beyond the index MCP along the side
+axis by more than 0.40 palm widths. Each finger latches with hysteresis (it
+lowers below 0.25 and 0.30 respectively). Because the frame rotates with
+the hand and the measures are ratios, the count does not change with camera
+distance, resolution, mirroring, left or right hand, or rotation in the
+image plane.
+
+A count reaches the relays only after three consecutive frames with a hand
+present. Losing the hand resets that run; the relays keep their state until
+a new count is confirmed. A fist turns everything off.
+
+The relay side is active-low by default, with a minimum switching interval
+per relay, guarded serial writes with one reconnect, every relay
+de-energised on every exit path, and an optional Arduino watchdog that
+releases the relays if the host stops sending heartbeats.
 
 The constants live in `gesturecontrol/rules.json`. The browser demo loads
 the same file and runs a JavaScript port of the same filter and rules;
