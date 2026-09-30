@@ -4,7 +4,8 @@ Command-line interface.
     gesturecontrol [run] [--port PORT] [--camera N] [--no-ui] ...
 
 ``run`` is the default command, so ``gesturecontrol --port /dev/ttyACM0``
-works as before. Further commands are registered in ``COMMANDS``.
+starts the loop without naming it; ``-v`` may precede either form. Further
+commands are registered in ``COMMANDS``.
 """
 
 from __future__ import annotations
@@ -231,14 +232,20 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+GLOBAL_FLAGS = frozenset(("-v", "--verbose"))
+GLOBAL_ACTIONS = frozenset(("-h", "--help", "--version"))
+
+
 def _with_default_command(argv: Sequence[str]) -> list[str]:
-    """Insert ``run`` when the first argument is not a command or a global option."""
+    """Insert ``run`` after any global flags when no command is named."""
     args = list(argv)
-    if not args:
-        return ["run"]
-    if args[0] in COMMANDS or args[0] in ("-h", "--help", "--version"):
+    i = 0
+    while i < len(args) and args[i] in GLOBAL_FLAGS:
+        i += 1
+    rest = args[i:]
+    if rest and (rest[0] in COMMANDS or rest[0] in GLOBAL_ACTIONS):
         return args
-    return ["run", *args]
+    return [*args[:i], "run", *rest]
 
 
 def main(argv: Sequence[str] | None = None) -> int:

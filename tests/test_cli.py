@@ -15,6 +15,24 @@ def test_run_is_the_default_command() -> None:
     assert _with_default_command(["--help"]) == ["--help"]
 
 
+def test_global_flags_may_precede_the_command() -> None:
+    assert _with_default_command(["-v"]) == ["-v", "run"]
+    assert _with_default_command(["-v", "--port", "COM3"]) == ["-v", "run", "--port", "COM3"]
+    assert _with_default_command(["--verbose", "simulate", "--list"]) == [
+        "--verbose",
+        "simulate",
+        "--list",
+    ]
+    assert _with_default_command(["-v", "--help"]) == ["-v", "--help"]
+    args = build_parser().parse_args(_with_default_command(["-v", "--no-ui"]))
+    assert args.verbose is True and args.command == "run" and args.no_ui is True
+
+
+def test_verbose_flag_runs_a_command(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["-v", "simulate", "--list"]) == 0
+    assert "hold_on_loss" in capsys.readouterr().out
+
+
 def test_version(capsys: pytest.CaptureFixture[str]) -> None:
     with pytest.raises(SystemExit) as info:
         main(["--version"])
