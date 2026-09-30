@@ -44,6 +44,7 @@ class Hand:
 
 
 def load_real_hands() -> list[Hand]:
+    """The recorded hands from ``data/hands.json``, z coordinates dropped."""
     text = resources.files(__package__).joinpath(HANDS_RESOURCE).read_text("utf-8")
     data = json.loads(text)
     return [
@@ -123,6 +124,7 @@ def synthetic_hand_cm(fingers_up: Sequence[bool], thumb: str = "extended") -> li
 
 
 def synthetic_pose_cm(count: int) -> list[Point3]:
+    """The model's pose for ``count`` extended fingers, from ``POSES``."""
     fingers, thumb = POSES[count]
     return synthetic_hand_cm(fingers, thumb)
 
@@ -153,6 +155,7 @@ def project(
 def synthetic_hand(
     count: int, palm_px: float = 60.0, width: int = 640, height: int = 480, name: str = ""
 ) -> Hand:
+    """The synthetic pose for ``count`` projected into a frame with the given palm width."""
     landmarks = project(synthetic_pose_cm(count), palm_px, width, height)
     return Hand(
         name or f"synthetic_{count}",
@@ -240,11 +243,13 @@ def reframe(hand: Hand, width: int, height: int, name: str | None = None) -> Han
 
 
 def palm_width_px(hand: Hand) -> float:
+    """Distance between the index and pinky MCP joints, in pixels."""
     px = hand.to_pixels()
     return math.hypot(px[5][0] - px[17][0], px[5][1] - px[17][1])
 
 
 def scale_to_palm(hand: Hand, palm_px: float, name: str | None = None) -> Hand:
+    """Scale the hand so that its palm width is ``palm_px`` pixels."""
     return scale(hand, palm_px / palm_width_px(hand), name or f"{hand.name}_palm{int(palm_px)}")
 
 
@@ -307,6 +312,7 @@ def jittered(hand: Hand, frames: int, amplitude_px: float, seed: int) -> list[tu
 
 
 def build_scenarios() -> list[Scenario]:
+    """The scripted sequences the simulator, the golden vectors and the tests share."""
     real = {h.name: h for h in load_real_hands()}
     w, h, fps = 640, 480, 30.0
     scenarios: list[Scenario] = []
@@ -474,6 +480,8 @@ def build_scenarios() -> list[Scenario]:
 
 @dataclass(frozen=True)
 class ClassifierCase:
+    """One single-frame fixture case: a base hand under one named transform."""
+
     name: str
     base: str
     transform: str

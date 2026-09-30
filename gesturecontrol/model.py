@@ -44,6 +44,7 @@ def cache_dir() -> Path:
 
 
 def default_model_path() -> Path:
+    """Where the bundle lives: ``GESTURECONTROL_MODEL`` if set, else the cache."""
     override = os.environ.get(ENV_MODEL_PATH)
     if override:
         return Path(override)
@@ -51,6 +52,7 @@ def default_model_path() -> Path:
 
 
 def sha256_of(path: Path) -> str:
+    """Hex SHA-256 of a file, read in 1 MiB chunks."""
     digest = hashlib.sha256()
     with path.open("rb") as f:
         for chunk in iter(lambda: f.read(1 << 20), b""):

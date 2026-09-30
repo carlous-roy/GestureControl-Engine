@@ -50,6 +50,7 @@ HAND_CONNECTIONS = [
 
 
 def solutions_api_available() -> bool:
+    """True when the installed mediapipe still ships the Solutions hands module."""
     try:
         import mediapipe as mp
 
@@ -59,6 +60,7 @@ def solutions_api_available() -> bool:
 
 
 def mediapipe_version() -> str:
+    """The installed mediapipe version, or a note that it is not installed."""
     try:
         import mediapipe as mp
 
@@ -68,6 +70,13 @@ def mediapipe_version() -> str:
 
 
 class HandDetector:
+    """MediaPipe Hands on either API, returning normalised landmarks per frame.
+
+    ``backend="auto"`` takes the Solutions API when the installed mediapipe
+    has it and the Tasks API otherwise. The Tasks API needs the pinned model
+    bundle, which ``gesturecontrol.model`` fetches and verifies at start-up.
+    """
+
     def __init__(
         self,
         *,
@@ -213,6 +222,7 @@ class HandDetector:
         return frame
 
     def close(self) -> None:
+        """Release the MediaPipe graph; the detector cannot be used afterwards."""
         if self._task_landmarker is not None:
             self._task_landmarker.close()
             self._task_landmarker = None

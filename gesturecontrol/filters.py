@@ -40,11 +40,13 @@ class OneEuroFilter:
         self._dx_prev = 0.0
 
     def reset(self) -> None:
+        """Forget the history; the next sample passes through unfiltered."""
         self._t_prev = None
         self._x_prev = 0.0
         self._dx_prev = 0.0
 
     def __call__(self, x: float, t: float) -> float:
+        """Filter sample ``x`` taken at time ``t`` (seconds) and return the estimate."""
         if self._t_prev is None:
             self._t_prev = t
             self._x_prev = x
@@ -86,6 +88,7 @@ class LandmarkFilter:
             fy.reset()
 
     def __call__(self, points: Sequence[Point], t: float) -> list[Point]:
+        """Filter every coordinate of ``points`` sampled at time ``t`` (seconds)."""
         if len(points) != len(self._filters):
             raise ValueError(f"expected {len(self._filters)} points, got {len(points)}")
         return [

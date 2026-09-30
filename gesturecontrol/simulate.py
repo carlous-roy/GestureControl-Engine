@@ -25,6 +25,8 @@ from gesturecontrol.pipeline import GesturePipeline
 
 @dataclass
 class ScenarioReport:
+    """What one scenario produced and whether it matched its declaration."""
+
     name: str
     frames: int
     confirmations: list[int]
@@ -48,6 +50,11 @@ def run_scenario(
     verbose: bool = False,
     out: TextIO | None = None,
 ) -> ScenarioReport:
+    """Replay one scenario through a fresh pipeline and controller and judge the outcome.
+
+    The controller runs in simulation mode on a clock driven by the scenario's
+    timestamps; ``verbose`` prints every frame instead of only the changes.
+    """
     out = out or sys.stdout
     now = [0.0]
     controller = RelayController(min_switch_interval=min_switch_interval, clock=lambda: now[0])
@@ -154,6 +161,7 @@ def simulate(
 
 
 def list_scenarios(out: TextIO | None = None) -> None:
+    """Print one line per scenario: name, frame count and description."""
     out = out or sys.stdout
     for scenario in sc.build_scenarios():
         out.write(f"{scenario.name:32s} {len(scenario.frames):4d} frames  {scenario.description}\n")

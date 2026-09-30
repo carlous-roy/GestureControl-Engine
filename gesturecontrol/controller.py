@@ -100,6 +100,14 @@ def default_board_factory(port: str) -> BoardLike:
 
 
 class RelayController:
+    """Four relays behind the policies in the module docstring.
+
+    Relay state is kept in memory whether or not a board is attached, so the
+    same controller serves the simulator, the tests and the hardware path.
+    All public methods take the controller's lock; the heartbeat thread and
+    the loop may call them concurrently.
+    """
+
     def __init__(
         self,
         *,
@@ -175,7 +183,8 @@ class RelayController:
     def connect(self, port: str) -> None:
         """Open the board and drive every relay to its de-energised level.
 
-        Raises HardwareError with a clear message when the port cannot be opened.
+        Raises HardwareError when the port cannot be opened or the first
+        writes fail; the controller is left disconnected in that case.
         """
         with self._lock:
             board = self._board_factory(port)
@@ -245,6 +254,7 @@ class RelayController:
         self._watchdog_ack = True
 
     def disconnect(self) -> None:
+        """Close the board, if any, without touching the relay levels."""
         with self._lock:
             if self._board is not None:
                 self._close_board(self._board)
@@ -261,6 +271,7 @@ class RelayController:
     # Relay commands -------------------------------------------------------
 
     def set_relay(self, index: int, state: bool) -> None:
+        """Request one relay state (index 0-3) and apply what the interval allows."""
         if not 0 <= index < 4:
             logger.warning("Ignoring relay index %d (valid: 0-3)", index)
             return
@@ -269,12 +280,14 @@ class RelayController:
             self.apply()
 
     def set_all(self, states: Sequence[bool]) -> None:
+        """Request the state of every relay and apply what the interval allows."""
         with self._lock:
             for i, state in enumerate(list(states)[:4]):
                 self._desired[i] = bool(state)
             self.apply()
 
     def set_from_finger_count(self, count: int) -> None:
+        """Request the relay pattern the gesture mapping assigns to ``count``."""
         self.set_all(relay_states_for_count(count))
 
     def apply(self) -> list[tuple[int, bool]]:
@@ -345,7 +358,9 @@ class RelayController:
             if self._board is None:
                 return
             now = self._clock()
-            gap_ms = (now - self._last_heartbeat) * 1000 if self._last_heartbeat else 0.0
+            gap_ms = (
+                (now - self._last_heartbeat) * 1000 if self._last_heartbeat is not None else 0.0
+            )
             try:
                 self._board.send_sysex(SYSEX_HEARTBEAT, [])
                 if gap_ms > self._heartbeat_timeout_ms:

@@ -116,6 +116,7 @@ class Measurements:
 
 
 def measure(points: Sequence[Point], config: RulesConfig) -> Measurements | None:
+    """Raw thumb and finger extensions for one frame, or None for unusable geometry."""
     frame = hand_frame(points, config.min_palm_width_px)
     if frame is None:
         return None

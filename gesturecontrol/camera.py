@@ -43,7 +43,7 @@ def parse_source(text: str) -> int | str:
 
 
 def open_source(source: int | str, width: int, height: int) -> OpenCVSource:
-    """Open a camera or a video file, or raise CameraError with a clear message."""
+    """Open a camera or a video file, or raise CameraError naming the source."""
     is_file = isinstance(source, str)
     capture = cv2.VideoCapture(source)
     if not capture.isOpened():

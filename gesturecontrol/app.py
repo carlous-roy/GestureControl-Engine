@@ -48,11 +48,13 @@ EXIT_SETUP = 2
 EXIT_UNSAFE = 3
 
 QUIT_KEYS = frozenset((ord("q"), ord("Q"), 27))
-SCREENSHOT_KEY = ord("s")
+SCREENSHOT_KEYS = frozenset((ord("s"), ord("S")))
 
 
 @dataclass(frozen=True)
 class RunOptions:
+    """Settings for one run of the loop; the CLI builds them from its arguments."""
+
     port: str | None = None
     camera: int | str = DEFAULT_CAMERA_INDEX
     width: int = DEFAULT_FRAME_WIDTH
@@ -204,6 +206,11 @@ def _screenshot(frame: Any) -> None:
 
 
 def run(opts: RunOptions, deps: Dependencies | None = None) -> int:  # noqa: PLR0912, PLR0915
+    """Run the loop until a quit key, a signal, the frame budget or a failure ends it.
+
+    Returns the exit code described in the module docstring. The relays are
+    de-energised and the board closed before this returns, whatever the path.
+    """
     deps = deps or Dependencies()
     stop = StopRequest()
     restore_signals = install_signal_handlers(stop, deps.signals)
@@ -234,7 +241,7 @@ def run(opts: RunOptions, deps: Dependencies | None = None) -> int:  # noqa: PLR
             display = deps.display_factory()
         pipeline: GesturePipeline | None = None
         started = True
-        logger.info("Ready. Show 0-5 fingers. %s", "Press Q to exit." if display else "")
+        logger.info("Ready. Show 0-5 fingers.%s", " Press Q to exit." if display else "")
 
         frames = 0
         fps = 0.0
@@ -292,7 +299,7 @@ def run(opts: RunOptions, deps: Dependencies | None = None) -> int:  # noqa: PLR
                 key = display.show(frame)
                 if key in QUIT_KEYS:
                     stop.request("quit key")
-                elif key == SCREENSHOT_KEY:
+                elif key in SCREENSHOT_KEYS:
                     _screenshot(frame)
 
             if deps.on_frame is not None:

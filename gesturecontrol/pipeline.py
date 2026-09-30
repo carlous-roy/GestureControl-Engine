@@ -22,6 +22,8 @@ from gesturecontrol.stabilizer import CountStabilizer
 
 @dataclass(frozen=True)
 class FrameResult:
+    """Everything the pipeline produced for one frame."""
+
     hand_present: bool
     raw_count: int
     """Count for this frame after filtering and hysteresis, or -1 without a hand."""
@@ -38,6 +40,12 @@ class FrameResult:
 
 
 class GesturePipeline:
+    """Filter, classify and confirm one hand's landmarks frame by frame.
+
+    ``width`` and ``height`` are the frame size in pixels; the rules run on
+    pixel coordinates so that x and y share one unit.
+    """
+
     def __init__(self, width: int, height: int, config: RulesConfig = DEFAULT_RULES) -> None:
         if width <= 0 or height <= 0:
             raise ValueError("frame size must be positive")

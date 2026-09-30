@@ -58,7 +58,8 @@ def test_fixture_file_is_current() -> None:
     assert expected == CASES
 
 
-def test_fixture_covers_the_audit_failure_cases() -> None:
+def test_fixture_covers_the_invariance_cases() -> None:
+    """Rotations, a small palm, thumb placements, yaw and a mirrored recording are all present."""
     names = {c["name"] for c in CASES}
     assert "synthetic_5_rot90" in names
     assert "synthetic_5_rot180" in names

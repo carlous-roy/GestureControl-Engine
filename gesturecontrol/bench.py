@@ -59,6 +59,8 @@ CSV_COLUMNS = (
 
 @dataclass(frozen=True)
 class BenchOptions:
+    """Settings for one measurement; the CLI builds them from its arguments."""
+
     source: int | str = 0
     frames: int = 300
     warmup: int = 10
@@ -77,6 +79,8 @@ class BenchOptions:
 
 @dataclass
 class StageStats:
+    """Summary of one stage's per-frame timings, in milliseconds."""
+
     median_ms: float
     p95_ms: float
     mean_ms: float
@@ -85,6 +89,8 @@ class StageStats:
 
 @dataclass
 class BenchResult:
+    """The measurement: frame counts, elapsed time, per-stage stats and context."""
+
     frames: int
     warmup: int
     elapsed_s: float
@@ -231,6 +237,11 @@ def bench(
     clock: Callable[[], float] = time.perf_counter,
     out: TextIO | None = None,
 ) -> BenchResult:
+    """Measure ``opts.frames`` frames after the warm-up, write the files and print the summary.
+
+    Raises CameraError, HardwareError or ModelError when a source, board or
+    model cannot be opened; the relays are released before the error leaves.
+    """
     out = out or sys.stdout
     if opts.frames < 1:
         raise ValueError("frames must be at least 1")
@@ -299,6 +310,7 @@ def bench(
 
 
 def write_csv(path: Path, rows: Sequence[dict[str, Any]]) -> None:
+    """Write the per-frame rows with the ``CSV_COLUMNS`` header, floats to 3 decimals."""
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=CSV_COLUMNS)
@@ -310,6 +322,7 @@ def write_csv(path: Path, rows: Sequence[dict[str, Any]]) -> None:
 
 
 def format_summary(r: BenchResult) -> str:
+    """The human-readable summary printed after a run, ending with the README row."""
     c = r.context
     lines = [
         "",
@@ -342,6 +355,7 @@ def format_summary(r: BenchResult) -> str:
 
 
 def markdown_row(r: BenchResult) -> str:
+    """One row for the README's frame-rate table, matching ``MARKDOWN_HEADER``."""
     c = r.context
     mode = "every frame" if c.get("detect_every_frame") else "tracking"
     cells = [

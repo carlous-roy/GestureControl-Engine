@@ -15,6 +15,8 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Confirmation:
+    """What one call to ``CountStabilizer.update`` decided."""
+
     confirmed: int
     """Last confirmed count, or -1 if nothing has been confirmed yet."""
     changed: bool
@@ -24,6 +26,8 @@ class Confirmation:
 
 
 class CountStabilizer:
+    """Run-length confirmation of the per-frame count (see the module docstring)."""
+
     def __init__(self, confirm_frames: int) -> None:
         if confirm_frames < 1:
             raise ValueError("confirm_frames must be at least 1")
@@ -42,6 +46,7 @@ class CountStabilizer:
         self._run = 0
 
     def update(self, raw_count: int) -> Confirmation:
+        """Feed one frame's count; -1 means no usable hand and resets the run."""
         if raw_count < 0:
             self.reset()
             return Confirmation(self._confirmed, False, 0)
