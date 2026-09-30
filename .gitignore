@@ -11,6 +11,10 @@ build/
 env/
 venv/
 .DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
 screenshots/
 *.log
 /bench.csv
@@ -18,3 +22,6 @@ screenshots/
 .coverage
 coverage.xml
 htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/

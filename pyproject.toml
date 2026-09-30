@@ -84,7 +84,7 @@ ignore = [
 python_version = "3.12"
 strict = true
 warn_unreachable = true
-files = ["gesturecontrol", "tests", "simulation"]
+files = ["gesturecontrol", "tests", "simulation", "scripts", "main.py"]
 
 [[tool.mypy.overrides]]
 module = ["mediapipe", "mediapipe.*", "pyfirmata2", "pyfirmata2.*", "cv2", "cv2.*", "serial", "serial.*"]
