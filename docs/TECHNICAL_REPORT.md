@@ -239,9 +239,9 @@ the frame rate of the loop on a laptop with a camera.
 
 ---
 
-**Project:** B.E. Electronics and Communication Engineering, Sathyabama
+Project: B.E. Electronics and Communication Engineering, Sathyabama
 Institute of Science and Technology, Chennai (2022)
 
-**Authors:** Roy Carlous C, Vasanth Mathew B
+Authors: Roy Carlous Christudass, Vasanth Mathew B
 
-**Guide:** Dr. T. Ravi, M.E., Ph.D., Head of Department, ECE
+Guide: Dr. T. Ravi, M.E., Ph.D., Head of Department, ECE

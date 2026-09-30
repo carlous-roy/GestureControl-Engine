@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "Webcam finger counting with MediaPipe, driving a 4-channel relay module over Firmata"
 readme = "README.md"
 license = { file = "LICENSE" }
-authors = [{ name = "Roy Carlous C" }]
+authors = [{ name = "Roy Carlous Christudass" }]
 requires-python = ">=3.10"
 classifiers = [
     "Programming Language :: Python :: 3",

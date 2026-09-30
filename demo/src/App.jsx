@@ -560,7 +560,7 @@ GND    ──────────>   GND`}</pre>
                 ["Degree", "B.E. Electronics & Communication"],
                 ["Institution", "Sathyabama Institute of Science and Technology"],
                 ["Year", "2022"],
-                ["Authors", "Roy Carlous C, Vasanth Mathew B"],
+                ["Authors", "Roy Carlous Christudass, Vasanth Mathew B"],
                 ["Guide", "Dr. T. Ravi, M.E., Ph.D."],
               ].map(([k, v]) => (
                 <div key={k} className="flex gap-3 mb-1.5">
