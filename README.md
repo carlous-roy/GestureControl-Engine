@@ -85,6 +85,10 @@ A fresh `pip install` today takes the Tasks line. On macOS it stops at
 1.0.0: the 1.0.1 wheel aborts the whole process while it builds the hand
 landmarker graph ([mediapipe#6356](https://github.com/google-ai-edge/mediapipe/issues/6356)),
 and the constraint in `pyproject.toml` lifts once a fixed release is out.
+On Linux the 1.x wheels link against EGL and OpenGL ES as well as the
+libraries OpenCV needs, so a minimal machine wants
+`apt-get install libgl1 libglib2.0-0 libegl1 libgles2` (Debian and Ubuntu
+package names) before the first import; CI installs the same four.
 The first run downloads
 the hand landmarker bundle (about 7.8 MB, pinned to a fixed release and
 verified by SHA-256) into the per-user cache directory (`~/.cache/gesturecontrol`
