@@ -254,7 +254,7 @@ export default function App() {
       <nav className="fixed top-0 inset-x-0 z-50 border-b border-white/[0.06]" style={{ background: "rgba(8,8,12,0.85)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)" }}>
         <div className="max-w-[1000px] mx-auto px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold text-white" style={{ background: "#DC2626" }}>G</div>
+            <img src="/rc-logo.svg" alt="" width="30" height="27" className="shrink-0" />
             <span className="text-[15px] font-semibold tracking-tight">GestureControl</span>
           </div>
           <div className="flex items-center gap-8">
