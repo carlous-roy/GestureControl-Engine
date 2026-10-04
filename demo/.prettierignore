@@ -1,0 +1,7 @@
+node_modules
+dist
+package-lock.json
+# The JavaScript port and its parity test keep the Python's layout line for line.
+src/gesture/
+test/golden.test.js
+test/golden_vectors.json

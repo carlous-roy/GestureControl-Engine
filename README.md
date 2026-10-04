@@ -1,7 +1,7 @@
 # GestureControl
 
 <p>
-  <a href="https://gesture.roycarlous.com"><img src="https://img.shields.io/badge/Browser_demo-gesture.roycarlous.com-22C55E?style=flat-square" alt="Browser demo" /></a>
+  <a href="https://gesture.roycarlous.com"><img src="https://img.shields.io/badge/Bench-gesture.roycarlous.com-22C55E?style=flat-square" alt="The bench" /></a>
   <img src="https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.10+" />
   <img src="https://img.shields.io/badge/OpenCV-5C3EE8?style=flat-square&logo=opencv&logoColor=white" alt="OpenCV" />
   <img src="https://img.shields.io/badge/MediaPipe-0097A7?style=flat-square&logo=google&logoColor=white" alt="MediaPipe" />
@@ -46,9 +46,13 @@ per relay, guarded serial writes with one reconnect, every relay
 de-energised on every exit path, and an optional Arduino watchdog that
 releases the relays if the host stops sending heartbeats.
 
-The constants live in `gesturecontrol/rules.json`. The browser demo loads
-the same file and runs a JavaScript port of the same filter and rules;
-both implementations are checked against `fixtures/golden_vectors.json`.
+The constants live in `gesturecontrol/rules.json`. The page at
+gesture.roycarlous.com, built from `demo/`, is a bench for all of this: it
+runs a JavaScript port of the same filter, rules and confirmation on the
+golden sequences or on a webcam, with the relay controller ported from
+`controller.py` and the Arduino with its watchdog sketch modelled beside it,
+so a pulled cable, a stalled host or a Ctrl-C can be tried without hardware.
+Both implementations are checked against `fixtures/golden_vectors.json`.
 
 ## Gesture mapping
 
@@ -218,7 +222,7 @@ gesturecontrol simulate                  # end-to-end smoke test
 python scripts/build_fixtures.py         # regenerate tests/fixtures/classifier_cases.json
 python scripts/export_golden_vectors.py  # regenerate fixtures/golden_vectors.json
 python scripts/sync_demo_fixtures.py     # copy shared files into demo/
-cd demo && npm ci && npm test            # JavaScript parity test
+cd demo && npm ci && npm test            # JavaScript parity test, bench models, components
 ```
 
 The detector and bench tests run real MediaPipe inference on synthetic frames.
@@ -250,7 +254,7 @@ gesturecontrol/       the package (console script: gesturecontrol)
   rules.json          the shared constants
   data/hands.json     recorded landmarks (coordinates only)
 firmware/             RelayWatchdogFirmata sketch
-demo/                 browser demo with the JavaScript port and its Vitest test
+demo/                 the bench page: the JavaScript port, the relay-side models, the UI
 fixtures/             golden_vectors.json shared by both test suites
 tests/                pytest suite; tests/fixtures/classifier_cases.json
 docs/                 ALGORITHM.md, HARDWARE.md, TECHNICAL_REPORT.md
